@@ -192,6 +192,22 @@ export function buildShowcase(runs: readonly ProjectRun[]): ShowcaseEntry[] {
   return entries.sort((a, b) => (b.endedAt ?? '').localeCompare(a.endedAt ?? ''));
 }
 
+/**
+ * The text of a text delivery's output. The contract asks for one Markdown
+ * string, and some executors still wrap it: run 0792f9fd (2026-11-15) returned
+ * `{ files: [], probes: [], answer }` and the page showed that JSON, escapes
+ * included. A string `answer` member is the answer; any other shape is shown
+ * as it is rather than guessed at.
+ */
+export function answerTextOf(output: unknown): string {
+  if (typeof output === 'string') return output;
+  if (output !== null && typeof output === 'object' && !Array.isArray(output)) {
+    const answer = (output as Record<string, unknown>)['answer'];
+    if (typeof answer === 'string' && answer.trim() !== '') return answer;
+  }
+  return JSON.stringify(output, null, 2);
+}
+
 /** The answer a text delivery kept in its trace, bounded; null when there is none to show. */
 export function readShowcaseAnswer(run: ProjectRun): string | null {
   if (run.artifactManifest?.delivery !== 'text') return null;
@@ -208,10 +224,7 @@ export function readShowcaseAnswer(run: ProjectRun): string | null {
     const output = trace.result?.output;
     if (output === undefined || output === null) return null;
     // Model-authored, on an anonymous page that promises never a host path.
-    const text = redactHostPaths(
-      typeof output === 'string' ? output : JSON.stringify(output, null, 2),
-      projectRunHostRedactions(run)
-    );
+    const text = redactHostPaths(answerTextOf(output), projectRunHostRedactions(run));
     return text.length > SHOWCASE_ANSWER_MAX ? `${text.slice(0, SHOWCASE_ANSWER_MAX)}…` : text;
   } catch {
     return null;

@@ -24,7 +24,7 @@ import {
   type ShowcaseEntry,
   type ShowcaseKind,
 } from '../src/viz/showcase.js';
-import { renderShowcaseEntry, renderShowcaseIndex, SHOWCASE_SECURITY_HEADERS } from '../src/viz/showcasePage.js';
+import { renderAnswer, renderShowcaseEntry, renderShowcaseIndex, SHOWCASE_SECURITY_HEADERS } from '../src/viz/showcasePage.js';
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_OPERATOR_ADDRESS,
@@ -883,6 +883,29 @@ describe('what a visitor can read', () => {
     expect(source.answer(entryId, text)).toBe(`${'x'.repeat(8_000)}…`);
     expect(source.answer(entryId, files)).toBeNull();
     expect(source.answer(entryId, 'not-an-episode')).toBeNull();
+  });
+
+  // Run 0792f9fd (2026-11-15): the executor wrapped its Markdown answer in
+  // { files, probes, answer } and the page showed the JSON, escapes included.
+  it('shows the answer an executor wrapped in an object, not its JSON', () => {
+    const w = world();
+    const id = seedRun(w, w.admin, { goal: 'Explain', delivery: 'text', answer: 'placeholder' });
+    const trace = join(w.root, 'runs', id, 'traces', `${id}.json`);
+    writeFileSync(trace, JSON.stringify({ id, result: { output: { files: [], probes: [], answer: '## Stack\n- TypeScript' } } }));
+    expect(createShowcaseSource(w.store).answer(id, id)).toBe('## Stack\n- TypeScript');
+    writeFileSync(trace, JSON.stringify({ id, result: { output: { rows: [1, 2] } } }));
+    expect(createShowcaseSource(w.store).answer(id, id)).toBe('{\n  "rows": [\n    1,\n    2\n  ]\n}');
+  });
+
+  it('renders an answer as Markdown, and only as the tags it writes itself', () => {
+    expect(renderAnswer('## Stack\n- **TypeScript** with `strict`\n- React\n\nTwo lines\nof prose.\n\n1. first\n2. second\n\n```\nnpm test\n**raw**\n```')).toBe([
+      '<h4>Stack</h4>', '<ul>', '<li><strong>TypeScript</strong> with <code>strict</code></li>', '<li>React</li>', '</ul>',
+      '<p>Two lines<br>of prose.</p>', '<ol>', '<li>first</li>', '<li>second</li>', '</ol>', '<pre>npm test\n**raw**</pre>',
+    ].join('\n'));
+    const hostile = renderAnswer('# <script>alert(1)</script>\n- [x](javascript:alert(2)) <img src=x onerror=alert(3)>\n`<b>` **<i>**');
+    expect(hostile).not.toMatch(/<(script|img|a|b|i)[\s>]/);
+    expect(hostile).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(hostile).toContain('<code>&lt;b&gt;</code> <strong>&lt;i&gt;</strong>');
   });
 
   it('withholds a host path the answer names', () => {

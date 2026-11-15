@@ -818,7 +818,7 @@ fail closed as before. The web service's executor dependency is one-way only.
   organisation carries no showcase field, so nobody sees a badge for it.
   Fail closed: opt-in, gate on, else
   404. One store query (`listShowcaseRuns`), an allow-list projection
-  (`showcase.ts`): title, request, numbers, file NAMES (none for a text answer: its manifest is the workspace it read), a text answer; never
+  (`showcase.ts`): title, request, numbers, file NAMES (none for a text answer: its manifest is the workspace it read), a text answer (its `answer` string when an executor wrapped it; escaped, then a fixed Markdown subset, never a link); never
   identities, paths, repositories or bytes. Server-rendered, all values
   escaped, one script pinned by hash in its CSP. English only.
 - Categories follow delivered file formats, never words in the request. Software

@@ -202,7 +202,14 @@ ol.steps .dot{flex:0 0 18px;height:18px;border-radius:50%;margin-top:3px;backgro
 ol.steps li.back .dot{background:var(--warn)}
 ol.steps b{display:block;color:#f8fbff;font-weight:650}
 ol.steps span{font-size:14px;color:#b9c5da}
-.answer{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;background:#0b1424;border:1px solid var(--line);border-radius:12px;padding:16px;max-height:420px;overflow:auto;color:#dbe6f6}
+.answer{overflow-wrap:anywhere;font-size:15px;line-height:1.6;background:#0b1424;border:1px solid var(--line);border-radius:12px;padding:16px 18px;max-height:560px;overflow:auto;color:#dbe6f6}
+.answer>:first-child{margin-top:0}.answer>:last-child{margin-bottom:0}
+.answer h3,.answer h4,.answer h5,.answer h6{margin:18px 0 6px;color:#f8fbff;font-weight:650;line-height:1.3}
+.answer h3{font-size:18px}.answer h4{font-size:16px}.answer h5,.answer h6{font-size:15px}
+.answer p{margin:8px 0}.answer ul,.answer ol{margin:8px 0;padding-left:20px}.answer li{margin:4px 0}
+.answer strong{color:#f8fbff;font-weight:650}
+.answer code,.answer pre{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(148,163,184,.14);border-radius:5px}
+.answer code{padding:1px 5px}.answer pre{margin:10px 0;padding:10px 12px;overflow:auto;white-space:pre}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:10px}
 .stats div{background:var(--raised);border-radius:12px;padding:12px}
 .stats small{display:block;font-size:12px;color:#8a99b4}.stats strong{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -352,6 +359,62 @@ ${closing(origin)}`;
   });
 }
 
+/** Inline Markdown of ALREADY ESCAPED text: code spans, then bold. Nothing else is markup. */
+function inlineAnswer(escaped: string): string {
+  return escaped.split(/(`[^`\n]+`)/).map((part) => part.length > 2 && part.startsWith('`') && part.endsWith('`')
+    ? `<code>${part.slice(1, -1)}</code>`
+    : part.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')).join('');
+}
+
+/**
+ * A text answer as the Markdown it is asked to be: headings, lists,
+ * paragraphs, fenced code, bold and code spans. The text is escaped FIRST and
+ * only these tags are then written, so nothing an answer holds becomes
+ * markup, a link or an attribute. Headings start at h3, under the page's own.
+ */
+export function renderAnswer(answer: string): string {
+  const out: string[] = [];
+  let list: 'ul' | 'ol' | null = null;
+  let paragraph: string[] = [];
+  let fence: string[] | null = null;
+  const endParagraph = (): void => {
+    if (paragraph.length > 0) out.push(`<p>${inlineAnswer(paragraph.join('<br>'))}</p>`);
+    paragraph = [];
+  };
+  const endBlock = (): void => {
+    endParagraph();
+    if (list) out.push(`</${list}>`);
+    list = null;
+  };
+  for (const line of esc(answer).split(/\r?\n/)) {
+    if (fence) {
+      if (/^\s*```/.test(line)) { out.push(`<pre>${fence.join('\n')}</pre>`); fence = null; } else fence.push(line);
+      continue;
+    }
+    if (/^\s*```/.test(line)) { endBlock(); fence = []; continue; }
+    const heading = /^(#{1,6})\s+(.+)$/.exec(line);
+    const item = /^\s*(?:[-*]|(\d+)[.)])\s+(.+)$/.exec(line);
+    if (heading) {
+      endBlock();
+      const level = Math.min(6, heading[1]!.length + 2);
+      out.push(`<h${level}>${inlineAnswer(heading[2]!)}</h${level}>`);
+    } else if (item) {
+      endParagraph();
+      const kind = item[1] ? 'ol' : 'ul';
+      if (list !== kind) { endBlock(); out.push(`<${kind}>`); list = kind; }
+      out.push(`<li>${inlineAnswer(item[2]!)}</li>`);
+    } else if (line.trim() === '') {
+      endBlock();
+    } else {
+      if (list) endBlock();
+      paragraph.push(line);
+    }
+  }
+  if (fence) out.push(`<pre>${fence.join('\n')}</pre>`);
+  endBlock();
+  return out.join('\n');
+}
+
 function episodeSection(episode: ShowcaseEpisode, index: number, count: number, answer: string | null, kind: ShowcaseKind): string {
   const steps = [
     ['Read the request', 'Turned it into a list of things it would have to prove before calling the work done.', false],
@@ -369,7 +432,7 @@ function episodeSection(episode: ShowcaseEpisode, index: number, count: number, 
     ['Delivered', episode.textDelivery ? 'The answer is written below.' : `${episode.files.length} file${episode.files.length === 1 ? '' : 's'} handed over.`, false],
   ] as const;
   const result = answer
-    ? `<div class="answer">${esc(answer)}</div>`
+    ? `<div class="answer">${renderAnswer(answer)}</div>`
     : episode.files.length
       ? `<ul class="flist">${episode.files.map((file) => `<li><span>${esc(file.path)}</span><em>${esc(formatSize(file.size))}</em></li>`).join('')}</ul>`
       : '<p style="color:var(--muted)">Delivered.</p>';
