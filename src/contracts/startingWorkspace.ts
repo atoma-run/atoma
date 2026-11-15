@@ -27,7 +27,11 @@ export const workspaceFileSnapshotSchema = z.object({
 }).strict().readonly();
 export type WorkspaceFileSnapshot = z.infer<typeof workspaceFileSnapshotSchema>;
 
-/** The starting side: the seed's files, and whether a cap cut the walk short. */
+/**
+ * The starting side: the seed's files, the first ones in detail and the rest
+ * by digest alone, and whether a cap left a starting file UNRECORDED. A
+ * truncated start cannot tell a new file from one it never recorded.
+ */
 export const startingSnapshotSchema = z.object({
   files: z.array(workspaceFileSnapshotSchema).readonly(), truncated: z.boolean(),
 }).strict().readonly();
@@ -66,6 +70,8 @@ export interface StartingWorkspaceComparison {
   readonly added: readonly string[];
   readonly startTruncated: boolean;
   readonly addedTruncated: boolean;
+  /** The start left files unrecorded, so no file can be called new and `added` is empty. */
+  readonly addedUnknown: boolean;
   readonly startFiles: number;
   readonly modeCompared: number;
   readonly modeUnknown: number;
@@ -128,8 +134,10 @@ export function compareStartingWorkspace(start: StartingSnapshot, now: Delivered
   }
   // What matters first: a removal or a rewrite must never hide behind a cap.
   changes.sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.path.localeCompare(b.path));
-  return { changes, unchanged, added: now.added.map((file) => file.path), startTruncated: start.truncated,
-    addedTruncated: now.addedTruncated, startFiles: start.files.length, modeCompared, modeUnknown };
+  // A truncated start never recorded some of its files: the delivered side
+  // (an older workspace service included) lists those among the new ones.
+  return { changes, unchanged, added: start.truncated ? [] : now.added.map((file) => file.path), startTruncated: start.truncated,
+    addedTruncated: now.addedTruncated, addedUnknown: start.truncated, startFiles: start.files.length, modeCompared, modeUnknown };
 }
 
 const MAX_LISTED = 20;
@@ -157,10 +165,20 @@ function describe(change: StartingFileChange): string {
 export function renderStartingWorkspace(comparison: StartingWorkspaceComparison | undefined): string {
   if (!comparison) return '';
   const lines = comparison.changes.slice(0, MAX_LISTED).map(describe);
-  const more = comparison.changes.length > MAX_LISTED ? [`- …and ${comparison.changes.length - MAX_LISTED} more, each changed or moved`] : [];
-  const added = comparison.added.length > 0
-    ? [`New files: ${comparison.added.slice(0, MAX_LISTED).join(', ')}${comparison.added.length > MAX_LISTED || comparison.addedTruncated ? ', …' : ''}.`]
+  const rest = comparison.changes.slice(MAX_LISTED);
+  const count = (label: string, ...statuses: StartingFileChange['status'][]): string[] => {
+    const n = rest.filter((change) => statuses.includes(change.status)).length;
+    return n > 0 ? [`${n} ${label}`] : [];
+  };
+  const more = rest.length > 0
+    ? [`- …and ${rest.length} more: ${[...count('not compared', 'unreadable'), ...count('removed', 'removed'), ...count('rewritten', 'rewritten'), ...count('changed or moved', 'moved', 'changed')].join(', ')}`]
     : [];
+  const added = comparison.addedUnknown
+    ? ['New files: not established. A file outside the starting snapshot may be new or an unrecorded starting file.']
+    : comparison.added.length > 0
+      ? [`New files: ${comparison.added.slice(0, MAX_LISTED).join(', ')}${comparison.added.length > MAX_LISTED || comparison.addedTruncated ? ', …' : ''}.`]
+      : [comparison.addedTruncated ? 'New files: the walk was cut short before any was found.'
+        : 'New regular files: none. Links, and dependency, cache and coverage directories, are not walked.'];
   return [
     'STARTING WORKSPACE — this run began from an existing deliverable; the host compared the files it started',
     'with to the files it delivers (mechanical):',

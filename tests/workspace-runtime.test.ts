@@ -44,6 +44,22 @@ describe('private workspace runtime', () => {
     expect(renderStartingWorkspace(comparison)).toContain('permissions 0644 → 0755; content unchanged');
   });
 
+  // Run ff1027b6 (2026-11-15): 25 files past the 400-file cap came back as new.
+  it('calls no starting file new past the detailed cap, across the real workspace process protocol', async () => {
+    const { root, remote } = fixture();
+    for (let i = 0; i < 424; i += 1) writeFileSync(join(root, `f${String(i).padStart(3, '0')}.ts`), `export const v${i} = ${i};\n`);
+    const start = snapshotStartingWorkspace(root);
+    expect(start).toMatchObject({ truncated: false });
+    expect(start.files).toHaveLength(425);
+    const untouched = compareStartingWorkspace(start, await remote.deliveredSnapshot(start));
+    expect(untouched).toMatchObject({ changes: [], added: [], unchanged: 425, addedUnknown: false });
+    expect(renderStartingWorkspace(untouched)).toContain('New regular files: none.');
+    writeFileSync(join(root, 'f410.ts'), 'export const v410 = 0;\n');
+    writeFileSync(join(root, 'zz-new.ts'), 'export {};\n');
+    const edited = compareStartingWorkspace(start, await remote.deliveredSnapshot(start));
+    expect(edited).toMatchObject({ changes: [{ path: 'f410.ts', status: 'changed', contentChanged: true }], added: ['zz-new.ts'], unchanged: 424 });
+  });
+
   it.each([false, true])('preserves drained state across a real workspace process (changed=%s)', async changed => {
     const { root, remote } = fixture();
     const ctx = makeCtx();

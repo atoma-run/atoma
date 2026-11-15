@@ -137,7 +137,7 @@ Neighbours:
   (`startingWorkspace`: removed; rewritten when under half of its starting
   lines survive anywhere in the delivery; moved when they survive in other
   files; changed; unchanged; new — the delivered side reads exactly the
-  starting paths, so no cap can report a kept file removed), because run
+  starting paths, so no cap reports a kept file removed, or one past the detailed 400 new: [contracts](../contracts/AGENTS.md#executor-coexistence)), because run
   902b2c21 (2026-09-27) replaced the configurator it was asked to keep with a stand-in computing the criterion's
   number, and nothing it read said so. And the files the criteria NAME
   ("docs/ERRORS.md", or a root Markdown stem such as "README") are read back

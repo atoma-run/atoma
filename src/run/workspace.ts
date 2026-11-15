@@ -1,5 +1,5 @@
 import { dirname, basename, join, relative, resolve } from 'node:path';
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
+import { closeSync, cpSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, renameSync, rmSync, writeFileSync, type Dirent } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { inheritProbeManifest, PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
 import { READ_RUNS_DIRECTORY } from '../contracts/readRuns.js';
@@ -401,6 +401,16 @@ export function launchWorkspacePreparation(input: { resume: boolean; saved?: unk
 }
 
 const SNAPSHOT_MAX_FILES = 400;
+/**
+ * Starting files past the detailed ones: recorded by digest alone, so the
+ * delivered side can tell a starting file from a new one. The bounds are the
+ * entry count the initial-state payload (4 MiB, about 145 bytes a record
+ * beside the detailed files) carries, and what one acceptance may hash on
+ * the event loop: the delivered side is read again at every reviewed result.
+ */
+const SNAPSHOT_MAX_DIGEST_FILES = 5_000;
+const SNAPSHOT_MAX_DIGEST_BYTES = 256 * 1024 * 1024;
+const DIGEST_CHUNK = Buffer.allocUnsafe(1024 * 1024);
 const SNAPSHOT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 const SNAPSHOT_MAX_TOTAL_BYTES = 32 * 1024 * 1024;
 const SNAPSHOT_MAX_LINE_BYTES = 512 * 1024;
@@ -457,18 +467,56 @@ function walkFiles(root: string, cap: number): { paths: string[]; truncated: boo
 }
 
 /**
+ * One file by size, mode and digest, without line hashes or text: the record
+ * of a starting file past the detailed cap, or one the detailed read refused
+ * for its size. Read in chunks, so its size costs time and never memory.
+ * Undefined when it is not a regular file within the remaining budget.
+ */
+function digestFile(root: string, rel: string, budget: { bytes: number }): WorkspaceFileSnapshot | undefined {
+  let stat;
+  try { stat = lstatSync(join(root, rel)); } catch { return undefined; }
+  if (!stat.isFile() || stat.size > budget.bytes) return undefined;
+  const hash = createHash('sha256');
+  const chunk = DIGEST_CHUNK;
+  const fd = openSync(join(root, rel), 'r');
+  let bytes = 0;
+  try {
+    for (;;) {
+      const read = readSync(fd, chunk, 0, chunk.length, null);
+      if (read === 0) break;
+      bytes += read;
+      if (bytes > budget.bytes) return undefined;
+      hash.update(chunk.subarray(0, read));
+    }
+  } finally { closeSync(fd); }
+  budget.bytes -= bytes;
+  return { path: rel, bytes, sha256: hash.digest('hex'), mode: stat.mode & 0o7777 };
+}
+
+/**
  * The deliverable files a SEEDED run starts from, read before any model work
- * (`src/contracts/startingWorkspace.ts`). `truncated` says the file cap or
- * the byte budget cut it short, so the acceptor is told the comparison is
- * partial rather than handed a false all-clear.
+ * (`src/contracts/startingWorkspace.ts`). The first `SNAPSHOT_MAX_FILES` are
+ * read in detail (line hashes, opening text); every other starting file is
+ * still recorded, by digest alone, so the delivered side can tell a starting
+ * file from a new one. `truncated` says a starting file is NOT recorded (a
+ * cap or a budget cut it), so the acceptor is told the comparison is partial
+ * and that new files cannot be established, rather than handed a false
+ * all-clear or the unrecorded files listed as new: read-only run ff1027b6
+ * (2026-11-15) was refused for "new" files that were the 25 past the cap of
+ * a 425-file repository.
  */
 export function snapshotStartingWorkspace(root: string): StartingSnapshot {
-  const walked = walkFiles(root, SNAPSHOT_MAX_FILES);
+  const walked = walkFiles(root, SNAPSHOT_MAX_FILES + SNAPSHOT_MAX_DIGEST_FILES);
   const budget = { bytes: SNAPSHOT_MAX_TOTAL_BYTES };
+  const digestBudget = { bytes: SNAPSHOT_MAX_DIGEST_BYTES };
   const files: WorkspaceFileSnapshot[] = [];
   let truncated = walked.truncated;
-  for (const rel of walked.paths) {
-    const file = snapshotFile(root, rel, budget);
+  for (const [index, rel] of walked.paths.entries()) {
+    // A file that cannot be read is unrecorded, like one a budget cut.
+    let file: WorkspaceFileSnapshot | undefined;
+    try {
+      file = (index < SNAPSHOT_MAX_FILES ? snapshotFile(root, rel, budget) : undefined) ?? digestFile(root, rel, digestBudget);
+    } catch { file = undefined; }
     if (file) files.push(file); else truncated = true;
   }
   return { files, truncated };
@@ -477,14 +525,21 @@ export function snapshotStartingWorkspace(root: string): StartingSnapshot {
 /**
  * The same files read again where the run left them — exactly the starting
  * paths, whatever else the run added, so a new file can never push a
- * starting one out of the comparison — plus the new files, under their own cap.
+ * starting one out of the comparison — plus the new files, under their own
+ * cap. A starting file recorded with line hashes is read in detail again;
+ * one recorded by digest alone is read by digest alone, then in detail only
+ * if its digest changed, so lines moved INTO it still count as kept (without
+ * that, code moved to a file past the detailed cap read as rewritten away).
  */
 export function snapshotDeliveredWorkspace(root: string, start: StartingSnapshot): DeliveredSnapshot {
   const budget = { bytes: SNAPSHOT_MAX_TOTAL_BYTES };
+  const digestBudget = { bytes: SNAPSHOT_MAX_DIGEST_BYTES };
   const unreadable: string[] = [];
   const files = start.files.flatMap((file) => {
     try {
-      const snapshot = snapshotFile(root, file.path, budget);
+      const digest = file.lineHashes === undefined ? digestFile(root, file.path, digestBudget) : undefined;
+      const snapshot = digest?.sha256 === file.sha256 ? digest
+        : snapshotFile(root, file.path, budget) ?? digest ?? digestFile(root, file.path, digestBudget);
       if (snapshot) return [snapshot];
       // Only a confirmed absent name establishes removal; a cap or a read
       // failure cannot say what happened to the starting file.
@@ -498,11 +553,12 @@ export function snapshotDeliveredWorkspace(root: string, start: StartingSnapshot
   const known = new Set(start.files.map((file) => file.path));
   const walked = walkFiles(root, SNAPSHOT_MAX_FILES + known.size);
   const added: WorkspaceFileSnapshot[] = [];
+  const addedBudget = { bytes: SNAPSHOT_MAX_TOTAL_BYTES };
   let addedTruncated = walked.truncated;
   for (const rel of walked.paths) {
     if (known.has(rel)) continue;
     if (added.length >= SNAPSHOT_MAX_FILES) { addedTruncated = true; break; }
-    const file = snapshotFile(root, rel, budget);
+    const file = snapshotFile(root, rel, addedBudget);
     if (file) added.push(file); else addedTruncated = true;
   }
   return { files, added, addedTruncated, ...(unreadable.length ? { unreadable } : {}) };

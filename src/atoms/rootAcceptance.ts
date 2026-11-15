@@ -170,7 +170,7 @@ async function inheritedReplay(
   ctx: RunContext,
   comparison: StartingWorkspaceComparison | undefined
 ): Promise<{ readonly report: InheritedChecksReport; readonly items: ShownInheritedItem[] } | undefined> {
-  if (!ctx.inheritedChecks || !comparison || (comparison.changes.length === 0 && comparison.added.length === 0)) return undefined;
+  if (!ctx.inheritedChecks || !comparison || (comparison.changes.length === 0 && comparison.added.length === 0 && !comparison.addedUnknown)) return undefined;
   const report = await ctx.inheritedChecks.compare({
     ...(ctx.deadlineAt !== undefined ? { deadlineAt: ctx.deadlineAt } : {}),
     ...(ctx.signal ? { signal: ctx.signal } : {}),

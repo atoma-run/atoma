@@ -470,6 +470,11 @@ bytes. The mechanical comparison reports permission-only changes; snapshots
 retained before this field leave permissions explicitly unknown. It never
 infers an old mode from the delivered tree. These extra fields need executor
 compatibility 4 because older checkpoint and workspace readers are strict.
+Since 2026-11-15 `files` holds the starting files past the first 400 too
+(5,000 more, 256 MiB, by digest alone: same record, no line hashes), so a
+starting file is never listed as new. No field was added, on purpose: an added one would be a
+fifth compatibility. `truncated` means a starting file is unrecorded, and the
+comparison then calls no file new, whatever the delivered side lists.
 Compute workers still using the older schema supply byte evidence only; their
 permission coverage remains unknown until the workspace image is upgraded.
 

@@ -827,6 +827,13 @@ describe('classification and grouping', () => {
     expect(calls).toHaveLength(2);
   });
 
+  it('lists no file for a text answer over an existing repository', () => {
+    const w = world();
+    seedRun(w, w.admin, { goal: 'Describe the architecture', delivery: 'text', answer: 'Layers.', files: ['README.md', 'public/brand/client-logo.png', 'src/index.ts'] });
+    const [entry] = createShowcaseSource(w.store, () => 1_000).entries();
+    expect(entry).toMatchObject({ kind: 'answers', episodes: [{ textDelivery: true, files: [] }] });
+  });
+
   it('reads an answer\'s trace once per TTL, with the list', () => {
     const w = world();
     const id = seedRun(w, w.admin, { goal: 'Answer', delivery: 'text', answer: 'first' });

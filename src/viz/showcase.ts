@@ -142,7 +142,11 @@ export function titleFromGoal(goal: string): string {
 
 function episodeOf(run: ProjectRun): ShowcaseEpisode {
   const elapsedMs = run.startedAt && run.endedAt ? Date.parse(run.endedAt) - Date.parse(run.startedAt) : NaN;
-  const files = (run.artifactManifest?.files ?? [])
+  // A text delivery hands over an answer. Its manifest is still the whole
+  // workspace inventory, which on an imported repository is the client's own
+  // tree: none of those names is something this run delivered.
+  const textDelivery = run.artifactManifest?.delivery === 'text';
+  const files = (textDelivery ? [] : run.artifactManifest?.files ?? [])
     .filter((file) => !path.posix.basename(file.path).startsWith('.'))
     .slice(0, SHOWCASE_FILES_MAX)
     .map((file) => ({ path: file.path, size: file.size }));
@@ -155,7 +159,7 @@ function episodeOf(run: ProjectRun): ShowcaseEpisode {
     costUsd: run.stats?.costUsd ?? null,
     sentBack: run.stats?.rootRemediations ?? 0,
     files,
-    textDelivery: run.artifactManifest?.delivery === 'text',
+    textDelivery,
   };
 }
 
