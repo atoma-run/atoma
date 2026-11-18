@@ -2067,7 +2067,7 @@ html.atoma-cursor-active * {
   display: flex; flex: 1; min-height: auto; flex-direction: column; gap: var(--ui-space-md);
   color: #e6edf7; font: var(--ui-type-body)/1.5 ui-sans-serif, system-ui, sans-serif;
 }
-.gpu-assistant-header { display: flex; flex: 0 0 auto; align-items: center; flex-wrap: wrap; gap: 12px 24px; padding-bottom: 12px; border-bottom: 1px solid #52678166; }
+.gpu-assistant-header { display: flex; flex: 0 0 auto; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding-bottom: 4px; border-bottom: 1px solid #52678166; }
 .gpu-assistant .gpu-assistant-header h2 { flex: 0 0 auto; font-size: var(--ui-type-section); max-width: 100%; }
 .gpu-assistant .gpu-project-mcp-toggle { border: 0; border-radius: 0; padding: 0; min-height: 28px; background: transparent; font: 600 14px/1.3 ui-sans-serif, system-ui, sans-serif; }
 .gpu-assistant-content:not([hidden]) { display: flex; flex: 1; min-height: auto; flex-direction: column; gap: var(--ui-space-md); }
@@ -2131,9 +2131,10 @@ html.atoma-cursor-active * {
   .gpu-assistant :is(pre, table, textarea)::-webkit-scrollbar-corner { background: transparent; }
 }
 .gpu-assistant-log--empty { flex: 0 0 auto; min-height: 0; overflow: visible; }
-.gpu-assistant-log-content > * + * { margin-top: 6px; }
+.gpu-assistant-log-content { width: min(100%, 88ch); margin-inline: auto; }
+.gpu-assistant-log-content > * + * { margin-top: 8px; }
 .gpu-assistant-message, .gpu-assistant-proposal { overflow-wrap: anywhere; }
-.gpu-assistant-message { box-sizing: border-box; width: fit-content; max-width: min(88%, 72ch); padding: 12px 16px; border: 1px solid #ffffff26; border-left: 2px solid #81adce; border-radius: 8px; font-size: var(--ui-type-body); line-height: 1.5; }
+.gpu-assistant-message { box-sizing: border-box; width: 100%; max-width: 100%; padding: 8px 12px; border: 1px solid #ffffff26; border-left: 2px solid #81adce; border-radius: 8px; font-size: var(--ui-type-body); line-height: 1.5; }
 .gpu-assistant-message p { white-space: pre-wrap; margin: 2px 0 0; font: inherit; }
 .gpu-assistant-message [role="status"] { font: inherit; }
 .gpu-assistant-message-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
@@ -2165,7 +2166,7 @@ html.atoma-cursor-active * {
 .gpu-assistant-proposal { padding: 10px 0; border-bottom: 1px solid #ffffff26; }
 .gpu-assistant-proposal p { white-space: pre-wrap; margin: 6px 0; font: inherit; }
 .gpu-assistant-read-runs code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: .92em; }
-.gpu-assistant-message--user { margin-left: auto; background: #81adce0f; }
+.gpu-assistant-message--user { width: calc(100% - 24px); margin-inline-start: 24px; background: #81adce0f; }
 .gpu-assistant-message--assistant { border-left-color: #78c9b0; background: #78c9b00f; }
 .gpu-assistant-message--receipt { border-left-color: #ada0cd; background: #ada0cd0f; }
 .gpu-assistant-message--assistant .gpu-assistant-message-meta strong { color: #9bdcc7; }
@@ -2174,7 +2175,9 @@ html.atoma-cursor-active * {
 .gpu-assistant-error-details summary { cursor: pointer; color: #b5c5dc; }
 .gpu-assistant-error-details p { color: #b5c5dc; }
 .gpu-run-number { white-space: nowrap; }
-.gpu-assistant-message-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; }
+.gpu-assistant-message-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+.gpu-assistant-message-meta > :last-child { margin-inline-start: auto; }
+.gpu-assistant .gpu-assistant-latest { position: absolute; bottom: 8px; inset-inline-end: 16px; z-index: 2; border-radius: 20px; padding: 6px 12px; box-shadow: 0 2px 8px #01040a80; }
 /*
  * Where the conversation is wide, Atoma's receipts take the room instead of the
  * height (owner, 2026-10-26): text on the left, its buttons beside it at the
@@ -2361,6 +2364,8 @@ html.atoma-cursor-active * {
 .gpu-project-mcp--selected.gpu-project-mcp--assistant { padding: var(--ui-space-card); }
 .gpu-assistant .gpu-assistant-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; flex: 0 0 auto; gap: 4px 12px; padding: 8px 10px; border: 1px solid #7b9db980; border-radius: 12px; background: #07142790; }
 .gpu-assistant-composer > label { grid-column: 1 / -1; font-size: var(--ui-type-dense); font-weight: 600; }
+.gpu-assistant-composer > label:not(.gpu-assistant-empty), .gpu-assistant-model-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.gpu-assistant, .gpu-assistant-content:not([hidden]), .gpu-assistant-conversation:not([hidden]) { gap: 8px; }
 .gpu-assistant .gpu-assistant-composer textarea { border: 0; border-radius: 4px; background: transparent; padding: 0; min-height: 44px; max-height: 112px; }
 .gpu-assistant-composer .gpu-assistant-footer { align-self: end; flex-direction: column; align-items: flex-end; margin-top: 0; gap: 4px; }
 .gpu-assistant-composer .gpu-assistant-footer small { font-size: var(--ui-type-meta); }

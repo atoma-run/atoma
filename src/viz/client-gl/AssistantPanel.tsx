@@ -141,6 +141,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   const panel = useRef<HTMLElement>(null);
   const log = useRef<HTMLDivElement>(null);
   const logContent = useRef<HTMLDivElement>(null);
+  const followingLatest = useRef(true);
   const [scrollEdges, setScrollEdges] = useState({ top: false, bottom: false });
   useLayoutEffect(() => {
     const viewport = log.current;
@@ -159,12 +160,16 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
     observer?.observe(viewport);
     observer?.observe(content);
-    viewport.addEventListener('scroll', update, { passive: true });
+    const onScroll = () => {
+      followingLatest.current = viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop <= 24;
+      update();
+    };
+    viewport.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', update);
     update();
     return () => {
       observer?.disconnect();
-      viewport.removeEventListener('scroll', update);
+      viewport.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', update);
     };
   }, []);
@@ -185,7 +190,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
   }, [conversation?.projectId, projectId, onScopeChange]);
   const waiting = busy || query.data?.busy === true;
   const active = useGpuStore(state => !state.selectedProjectId || state.projectSection === 'conversation');
-  useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; },
+  useEffect(() => { if (log.current && followingLatest.current) log.current.scrollTop = log.current.scrollHeight; },
     [conversation?.messages.at(-1)?.id ?? conversation?.messages.length, visibleOptimistic?.requestId, query.data?.run?.status, waiting, active,
       query.data?.activity?.[0]?.runId, query.data?.activity?.[0]?.status,
       // A new deployment, and its start settling; never a health flap of one long told.
@@ -288,6 +293,7 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
         at: new Date().toISOString(), knownMessageIds: new Set(conversation.messages.flatMap(message => message.id ? [message.id] : [])) }
       : null;
     if (submittedMessage) {
+      followingLatest.current = true;
       setOptimistic(submittedMessage);
       setDraft('');
     }
@@ -435,6 +441,10 @@ export function AssistantPanel({ scopeKey, projectId, locale, externalAgentGuide
       </div> : null}
     </div>
     </div>
+    {scrollEdges.bottom ? <button type="button" className="gpu-assistant-latest" onClick={() => {
+      followingLatest.current = true;
+      if (log.current) log.current.scrollTop = log.current.scrollHeight;
+    }}><ButtonIcon kind="down" />{t('assistant.latestMessages')}</button> : null}
     </div>
     {/* What is asked of the person first, then what is happening: the log is where it is told, this is where one acts. */}
     {awaitingRun ? <div className="gpu-assistant-run gpu-assistant-run--review" role="status">

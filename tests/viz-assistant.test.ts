@@ -884,6 +884,34 @@ it('tells no deployment older than the loaded messages, nor another project\'s',
 });
 
 
+it('keeps the reader in older messages during updates and resumes following only on request', async () => {
+  const data = view();
+  data.conversation.messages = [{ id: 'first', role: 'assistant', text: 'Saved answer', at: '2026-11-18T12:00:00Z' }];
+  const { client } = panel(data, 'alice:org-a', projectId);
+  await screen.findByText('Saved answer');
+  const log = screen.getByRole('log');
+  Object.defineProperties(log, {
+    clientHeight: { configurable: true, value: 200 },
+    scrollHeight: { configurable: true, value: 800 },
+  });
+  fireEvent.scroll(log, { target: { scrollTop: 120 } });
+  const update = async (id: string) => {
+    const next = { ...data, conversation: { ...data.conversation, messages: [...data.conversation.messages,
+      { id, role: 'assistant' as const, text: id, at: '2026-11-18T12:01:00Z' }] } };
+    act(() => { client.setQueryData(['viz', 'assistant', 'alice:org-a', projectId], next); });
+    await screen.findByText(id);
+  };
+  await update('A new reply');
+  expect(log.scrollTop).toBe(120);
+  fireEvent.click(screen.getByRole('button', { name: 'Latest messages' }));
+  expect(log.scrollTop).toBe(800);
+  // jsdom does not clamp scrollTop or dispatch the browser's scroll event.
+  fireEvent.scroll(log, { target: { scrollTop: 600 } });
+  expect(screen.queryByRole('button', { name: 'Latest messages' })).not.toBeInTheDocument();
+  await update('Another reply');
+  expect(log.scrollTop).toBe(800);
+});
+
 it('updates conversation edge shadows on native scroll, viewport resize and content growth', async () => {
   const updates: (() => void)[] = [];
   const observed: Element[] = [];

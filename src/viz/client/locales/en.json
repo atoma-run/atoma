@@ -2236,6 +2236,7 @@
   "assistant.busyResultsStalled": "Your previous run is finished, but its results could not be transferred from your computer yet. Open that run and choose Get the results, or contact support if this continues. You can start a new run once they have arrived.",
   "assistant.busyResultsStalledOther": "A finished run is waiting for its results, which could not be transferred yet from the computer of the person who started it. You can start your run once they have arrived.",
   "assistant.message": "Your message",
+  "assistant.latestMessages": "Latest messages",
   "assistant.placeholder": "Describe the next change…",
   "assistant.placeholderNew": "Describe your idea…",
   "assistant.ownAgent": "Use your own agent",
