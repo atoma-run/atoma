@@ -2884,5 +2884,6 @@
   "wit.noOutput": "Nenhuma saída registada",
   "wit.truncated": "Excerto da saída; abra o run para ver o recibo completo.",
   "wit.open": "Abrir run de origem",
-  "wit.details": "Chamadas diretas ao Wit registadas nos rastos do run. A verificação compara o texto testemunhado com a saída do comando; não determina a aceitação nem a relevância da origem. A geração atualiza o texto. Os comandos dentro de scripts não são detetados. Nenhum comando é executado novamente aqui. Uma verificação pode ser aprovada sem testemunhos; alterações posteriores ao documento não são avaliadas."
+  "wit.details": "Chamadas diretas ao Wit registadas nos rastos do run. A verificação compara o texto testemunhado com a saída do comando; não determina a aceitação nem a relevância da origem. A geração atualiza o texto. Os comandos dentro de scripts não são detetados. Nenhum comando é executado novamente aqui. Uma verificação pode ser aprovada sem testemunhos; alterações posteriores ao documento não são avaliadas.",
+  "assistant.latestMessages": "Mensagens mais recentes"
 }

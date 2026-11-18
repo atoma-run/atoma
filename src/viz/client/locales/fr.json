@@ -2884,5 +2884,6 @@
   "wit.noOutput": "Aucune sortie enregistrée",
   "wit.truncated": "Extrait de la sortie ; ouvre le run pour consulter le reçu complet.",
   "wit.open": "Ouvrir le run source",
-  "wit.details": "Appels directs à Wit enregistrés dans les traces du run. La vérification compare le texte attesté à la sortie de la commande ; elle n’établit ni son acceptation ni la pertinence de la source. La génération met à jour le texte. Les commandes contenues dans des scripts ne sont pas détectées. Aucune commande n’est réexécutée ici. Une vérification peut réussir sans attestations ; les modifications ultérieures du document ne sont pas évaluées."
+  "wit.details": "Appels directs à Wit enregistrés dans les traces du run. La vérification compare le texte attesté à la sortie de la commande ; elle n’établit ni son acceptation ni la pertinence de la source. La génération met à jour le texte. Les commandes contenues dans des scripts ne sont pas détectées. Aucune commande n’est réexécutée ici. Une vérification peut réussir sans attestations ; les modifications ultérieures du document ne sont pas évaluées.",
+  "assistant.latestMessages": "Derniers messages"
 }
