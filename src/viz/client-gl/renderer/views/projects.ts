@@ -433,15 +433,19 @@ export function projectSectionLayout(ctx: Pick<RendererCtx, 'measureText'>, snap
     x += tabWidth + UI_SPACE.sm;
     return tab;
   });
-  x = frame.innerX;
-  y += rowHeight;
   const project = snapshot.data.projects?.find(project => project.projectId === snapshot.state.selectedProjectId);
+  // Reuse the last tab row when the complete repository/hosting identity fits.
+  // Measure the unconstrained copy first: a truncated URL is not evidence of fit.
+  const identityWidth = project ? repositoryInfo(ctx, snapshot, project, Number.MAX_SAFE_INTEGER).infoWidth + BUTTON_LABEL_INSET * 2 : Infinity;
+  const inline = !narrow && right - x >= Math.max(PROJECTS_NARROW_CONTENT_WIDTH, identityWidth);
+  if (!inline) { x = frame.innerX; y += rowHeight; }
   const hostedRow = frame.innerWidth - BUTTON_LABEL_INSET * 2 < PROJECTS_NARROW_CONTENT_WIDTH && project?.hostedUrl ? rowHeight : 0;
-  return { tabs, repository: { x, y, width: right - x }, contentTop: y + rowHeight + hostedRow };
+  const identityRowHeight = inline || snapshot.state.handheld ? rowHeight : 28;
+  return { tabs, repository: { x, y, width: right - x, inline }, contentTop: y + identityRowHeight + hostedRow };
 }
 
 /** Shared metadata for the project header and project collection rows. */
-function repositoryInfo(ctx: RendererCtx, snapshot: GpuRenderSnapshot, project: VizProject, infoMaxWidth: number) {
+function repositoryInfo(ctx: Pick<RendererCtx, 'measureText'>, snapshot: GpuRenderSnapshot, project: VizProject, infoMaxWidth: number) {
   const repositoryStatusCopy = project.repositoryStatus === 'ready' && project.repositoryUrl
     ? null
     : statusLabel(snapshot.t, project.repositoryStatus, 'projects.repoStatus');
@@ -686,7 +690,8 @@ export function drawProjects(
     }
     // Project identity belongs to the shared header, before any section returns.
     drawRepositoryInfo(ctx, snapshot, selectedProject, ctx.root,
-      sectionLayout.repository.x + BUTTON_LABEL_INSET, sectionLayout.repository.y - 5,
+      sectionLayout.repository.x + BUTTON_LABEL_INSET, sectionLayout.repository.y + (sectionLayout.repository.inline
+        ? (snapshot.state.handheld ? UI_LAYOUT.touchHeight : UI_LAYOUT.controlHeight) / 2 - PROJECT_INFO_CENTER_Y : -5),
       repositoryInfo(ctx, snapshot, selectedProject,
         Math.max(0, sectionLayout.repository.width - BUTTON_LABEL_INSET * 2)));
     contentTop = sectionLayout.contentTop;

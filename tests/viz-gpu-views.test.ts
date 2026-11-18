@@ -3003,6 +3003,21 @@ describe('drawViewFrame on a narrow column', () => {
 });
 
 describe('drawProjects', () => {
+  it('shares the tabs row with a fully measured repository link only when it fits', () => {
+    const project = guidanceProject();
+    const snapshot = makeSnapshot({ selectedProjectId: project.projectId }, { projects: [project] });
+    const ctx = createRecordingCtx();
+    const wide = projectSectionLayout(ctx, snapshot, 1920);
+    const last = wide.tabs.at(-1)!;
+    expect(wide.repository.inline).toBe(true);
+    expect(wide.repository.y).toBe(last.y);
+    expect(wide.repository.x).toBeGreaterThan(last.x + last.width);
+    const narrow = projectSectionLayout(ctx, snapshot, 528);
+    expect(narrow.repository.inline).toBe(false);
+    expect(narrow.repository.y).toBeGreaterThan(narrow.tabs.at(-1)!.y);
+    const long = { ...project, repositoryUrl: `https://github.com/owner/${'long-repository-'.repeat(60)}` };
+    expect(projectSectionLayout(ctx, makeSnapshot({ selectedProjectId: project.projectId }, { projects: [long] }), 1920).repository.inline).toBe(false);
+  });
   it.each([1280, 360])('offers crash recovery and explains blocked replay at width %s', width => {
     const project: VizProject = { projectId: 'p-1', name: 'App', slug: 'app', status: 'active', family: 'build',
       repositoryTarget: { installationId: '501', owner: 'acme', name: 'app', visibility: 'private' },
@@ -3805,7 +3820,7 @@ describe('drawProjects', () => {
       expect(ctx.texts.some(text => text.value === '$1.05')).toBe(true);
     }
     const conversation = draw('conversation', wide).ctx;
-    const guideTop = projectSectionLayout(conversation, makeSnapshot({}, data), wide).contentTop;
+    const guideTop = projectSectionLayout(conversation, makeSnapshot({ selectedProjectId: project.projectId }, data), wide).contentTop;
     expect(conversation.panels.find(panel => panel.y === guideTop && panel.x !== aside.asideX)?.width).toBe(aside.mainWidth);
     const runs = draw('runs', wide).ctx;
     for (const button of runs.buttons.filter(candidate => candidate.id.startsWith('project.run.'))) {
