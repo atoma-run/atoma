@@ -1734,7 +1734,15 @@ try {
           const user = globalThis.getComputedStyle(document.querySelector('.gpu-assistant-message--user'));
           const assistant = globalThis.getComputedStyle(document.querySelector('.gpu-assistant-message--assistant'));
           const guide = document.querySelector('.gpu-project-mcp').getBoundingClientRect();
+          const thread = document.querySelector('.gpu-assistant-log-content').getBoundingClientRect();
+          const messagesAligned = [...document.querySelectorAll('.gpu-assistant-message')].every(message => {
+            const box = message.getBoundingClientRect();
+            return message.classList.contains('gpu-assistant-message--user')
+              ? Math.abs(box.right - thread.right) <= 1 && box.left > thread.left + thread.width * .1
+              : Math.abs(box.left - thread.left) <= 1 && box.right < thread.right - thread.width * .1;
+          });
           return { headerTop: header?.top, headerBottom: header?.bottom, modelTop: model.top, modelBottom: model.bottom,
+            messagesAligned,
             userBorder: user.borderLeftWidth, assistantBorder: assistant.borderLeftWidth,
             userColor: user.borderLeftColor, assistantColor: assistant.borderLeftColor, bottomGap: innerHeight - guide.bottom };
         });
@@ -1744,6 +1752,7 @@ try {
         if (layout.userBorder !== '2px' || layout.assistantBorder !== '2px' || layout.userColor === layout.assistantColor) {
           throw new Error(`Speakers need consistent, distinct borders: ${JSON.stringify(layout)}`);
         }
+        if (!layout.messagesAligned) throw new Error('User messages must align right and Atoma messages left within the conversation');
         if (assistantNoRuns && selectFirst && cameraMode === 'overview' && height >= 800 && layout.bottomGap > 140) {
           throw new Error(`Unused space remains below the conversation: ${JSON.stringify(layout)}`);
         }
