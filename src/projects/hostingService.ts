@@ -1,4 +1,5 @@
 import { readHostingManifest } from './hostingManifest.js';
+import { underStaticRoot } from '../preview/descriptor.js';
 import type { PlatformEventSink } from '../contracts/platformEvents.js';
 import { request } from 'node:http';
 import { randomUUID } from 'node:crypto';
@@ -41,9 +42,9 @@ export class HostingService {
   private readonly mutating = new Set<string>();
   private readonly jobs = new Set<Promise<void>>();
   constructor(readonly deps: { store: HostingStore; projects: ProjectStore; previews: PreviewStore;
-    launcher: HostingLauncher; domain: string; maxDeployments: number; probe(port: number): Promise<boolean>;
+    launcher: HostingLauncher; domain: string; maxDeployments: number; probe(port: number, path?: string): Promise<boolean>;
     /** The periodic check's probe, with its longer timeout (`HOSTING_HEALTH`); absent, `probe`. */
-    healthProbe?(port: number): Promise<boolean>;
+    healthProbe?(port: number, path?: string): Promise<boolean>;
     events?: PlatformEventSink;
     /** Proposes the project's address label; absent, the label is derived from its slug and name. */
     namer?: HostingSubdomainNamer;
@@ -110,13 +111,17 @@ export class HostingService {
     let browser = false;
     try { browser = !!(run && readHostingManifest(run.hostPaths.workspacePath, run.artifactManifest)); } catch { /* invalid capability is not deployable */ }
     const shown = active ?? row;
+    const published = !!(run?.artifactManifestHash && !run.bytesExpiredAt && publication?.status === 'published' && publication.commitSha);
+    const runnable = descriptor?.availability === 'available' || browser;
     const previous = this.restorable(viewer.orgId, projectId, rows);
     return { available: true, state: row?.state ?? 'not-deployed', deploymentId: row?.deploymentId ?? null,
       runId: shown?.runId ?? null, commitSha: shown?.commitSha ?? null,
       url: active ? `https://${this.host(active)}/` : null, error: row?.error ?? null,
       address: project.hostingSubdomain ? `https://${project.hostingSubdomain}.${this.deps.domain}/` : null,
-      candidate: run?.artifactManifestHash && !run.bytesExpiredAt && (descriptor?.availability === 'available' || browser) && publication?.status === 'published' && publication.commitSha
-        ? { ...this.describe(viewer.orgId, run.projectRunId, publication.commitSha), manifestHash: run.artifactManifestHash } : null,
+      candidate: published && runnable
+        ? { ...this.describe(viewer.orgId, run.projectRunId, publication.commitSha!), manifestHash: run.artifactManifestHash! } : null,
+      // Only what delivery observed: a run with no descriptor is not called unstartable.
+      ...(published && !runnable && descriptor ? { candidateNotRunnable: true } : {}),
       version: shown ? this.describe(viewer.orgId, shown.runId, shown.commitSha) : null,
       previous: previous ? { ...this.describe(viewer.orgId, previous.runId, previous.commitSha), manifestHash: previous.manifestHash } : null,
       updateStops: rows.some(holdsApplicationData),
@@ -177,7 +182,8 @@ export class HostingService {
     return { orgId, projectId, deploymentId: randomUUID(), runId: input.runId,
       manifestHash: input.manifestHash, commitSha: release.commitSha, state: 'starting', kind: release.browserConfig ? 'node' : release.descriptor!.kind!, browser: !!release.browserConfig,
       entry: release.browserConfig?.entry ?? release.descriptor?.entry ?? 'index.js', createdAt: new Date().toISOString(), error: null, hostPort: null, image: null,
-      replacedRunId, ...(previousRunId ? { previousRunId } : {}) };
+      replacedRunId, ...(previousRunId ? { previousRunId } : {}),
+      ...(!release.browserConfig && release.descriptor?.kind === 'static' && release.descriptor.root ? { root: release.descriptor.root } : {}) };
   }
   private reserve(row: HostedDeployment, expected: string | null): void {
     try { this.deps.store.reserve(row, expected, this.deps.maxDeployments); }
@@ -298,7 +304,7 @@ export class HostingService {
         await this.deps.materializePublishedSource(row, publishedRoot);
         const built = buildWorkspaceArtifactManifest({ workspaceRoot: publishedRoot });
         const browser = readHostingManifest(publishedRoot, built.manifest);
-        const requiredEntry = row.kind === 'static' ? 'index.html' : row.entry;
+        const requiredEntry = row.kind === 'static' ? (row.root ? `${row.root}/index.html` : 'index.html') : row.entry;
         if (!!browser !== !!row.browser || (browser && browser.entry !== row.entry) ||
           !built.manifest.files.some(file => file.path === requiredEntry)) {
           throw new Error('Published application entry differs from the accepted hosting capability');
@@ -355,7 +361,7 @@ export class HostingService {
         // update's swap, visitors wait for this answer.
         let ready = false;
         for (let attempt = 0; attempt < 120; attempt++) {
-          if (await this.deps.probe(handle.hostPort).catch(() => false)) { ready = true; break; }
+          if (await this.deps.probe(handle.hostPort, probePath(row)).catch(() => false)) { ready = true; break; }
           await new Promise(resolve => setTimeout(resolve, 250));
         }
         if (!ready) throw new Error('Not ready');
@@ -433,7 +439,7 @@ export class HostingService {
         this.deps.store.update({ ...row, state: 'failed', error: 'interrupted' }, 'starting');
       } else if (row.error !== 'cleanup-failed') {
         const handle = await this.deps.launcher.inspectHosting(identity(row));
-        const healthy = handle && await this.deps.probe(handle.hostPort).catch(() => false);
+        const healthy = handle && await this.deps.probe(handle.hostPort, probePath(row)).catch(() => false);
         // A web restart (every deployment of Atoma) is no verdict on a busy
         // application: a running one that was ready stays so, one failure counted.
         if (handle && (healthy || row.state === 'ready')) this.deps.store.update({ ...row, ...handle, state: 'ready', error: null, readyAt: row.readyAt ?? new Date().toISOString() }, row.state);
@@ -482,7 +488,7 @@ export class HostingService {
         let handle: HostingHandle | null;
         try { handle = await this.deps.launcher.inspectHosting(identity(row)); }
         catch { continue; }
-        const healthy = !!handle && await (this.deps.healthProbe ? this.deps.healthProbe(handle.hostPort) : this.deps.probe(handle.hostPort)).catch(() => false);
+        const healthy = !!handle && await (this.deps.healthProbe ? this.deps.healthProbe(handle.hostPort, probePath(row)) : this.deps.probe(handle.hostPort, probePath(row))).catch(() => false);
         const current = this.deps.store.list(row.orgId, row.projectId).find(r => r.deploymentId === row.deploymentId);
         if (this.mutating.has(row.projectId) || current?.state !== row.state) { this.healthFailures.delete(row.deploymentId); continue; }
         if (healthy) {
@@ -545,13 +551,15 @@ export function hostingHistory(rows: readonly HostedDeployment[],
       keptOnline: outcome === 'not-started' && replaced && serving !== undefined && rows.indexOf(serving) > index };
   });
 }
+/** What a deployment answers for: `/`, under the directory a static one serves as its root. */
+function probePath(row: HostedDeployment): string { return row.root ? underStaticRoot(row.root, '/') : '/'; }
 /**
  * Readiness must reach a successful application response, not a relay-generated
  * 502. Two seconds at start; the periodic check passes `HOSTING_HEALTH.timeoutMs`.
  */
-export function probeHostedApplication(port: number, timeoutMs = 2000): Promise<boolean> {
+export function probeHostedApplication(port: number, timeoutMs = 2000, path = '/'): Promise<boolean> {
   return new Promise(resolve => {
-    const req = request({ host: '127.0.0.1', port, path: '/', timeout: timeoutMs }, res => {
+    const req = request({ host: '127.0.0.1', port, path, timeout: timeoutMs }, res => {
       res.resume(); resolve((res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 400);
     });
     req.on('error', () => resolve(false)); req.on('timeout', () => { req.destroy(); resolve(false); }); req.end();

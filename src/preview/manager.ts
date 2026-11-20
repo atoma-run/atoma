@@ -5,7 +5,7 @@ import { mintPreviewClaim, PreviewClaimRegistry } from './claims.js';
 import type { PreviewConfig } from './config.js';
 import { previewGenerationHost, previewOrigin } from './gateway.js';
 import { PreviewRouteTable } from './gatewayServer.js';
-import { classifyDeliveredWorkspace } from './descriptor.js';
+import { classifyDeliveredWorkspace, staticPreviewRoot } from './descriptor.js';
 import { materializePreviewWorkspace, PreviewPolicyError, type PreviewCopyOwnership } from './policy.js';
 import { startPreview, teardownPreview, PreviewRuntimeError } from './runtime.js';
 import { effectiveEgressHosts, PreviewStateConflict, PreviewStore } from './store.js';
@@ -271,6 +271,7 @@ export class PreviewManager {
           kind: 'static',
           workspaceRoot: workspace.hostPath,
           allowedHosts: allowed,
+          ...(descriptor.root ? { root: descriptor.root } : {}),
         });
         store.markReady({
           orgId: input.orgId,
@@ -433,6 +434,7 @@ export class PreviewManager {
       const { allowed } = effectiveEgressHosts([], approved, this.deps.config.allowedHosts);
 
       if (classified.kind === 'static') {
+        const root = staticPreviewRoot(workspace.hostPath, { manifestRoot: sourceRoot });
         this.deps.routes.set(host, {
           orgId: input.orgId,
           projectRunId: input.projectRunId,
@@ -440,6 +442,7 @@ export class PreviewManager {
           kind: 'static',
           workspaceRoot: workspace.hostPath,
           allowedHosts: allowed,
+          ...(root ? { root } : {}),
         });
         store.markReady({
           orgId: input.orgId,

@@ -11,6 +11,8 @@ import {
 import {
   buildPreviewDescriptor,
   classifyDeliveredWorkspace,
+  staticPreviewRoot,
+  underStaticRoot,
   type PreviewClassification,
 } from '../src/preview/descriptor.js';
 
@@ -352,6 +354,69 @@ describe('an http probe classifies the deliverable as node', () => {
       [`${copy}/server.js`]: '// the read run\'s server\n',
     });
     expect(classifyDeliveredWorkspace(page)).toEqual({ availability: 'available', kind: 'static', entry: null, unavailableReason: null });
+  });
+
+  // Run df8e237e (2026-11-20): a Vite front-end. Its source `index.html` sits
+  // at the root, its application at `dist/index.html`, its only server was a
+  // scratch script serving the build, and a browser validated the built page.
+  it('classifies a built front-end static, served from the directory its scratch server served', () => {
+    const page = `<!doctype html>\n<html lang="fr">\n  <head>\n${'    <meta name="x" content="y">\n'.repeat(8)}    <script type="module" src="/assets/app.js"></script>\n`;
+    const scratch = httpEntry({ serverKind: 'node', entry: '.atoma-scratch/serve-build.mjs', body: page.slice(0, 200) });
+    const built = { ...WEB_ENTRY, file: 'dist/index.html' };
+    const files = {
+      [PROBE_MANIFEST_FILENAME]: manifest(built, scratch, { ...scratch, path: '/assets/app.js', body: 'export {};' }, { ...built, smoke: '() => 2' }),
+      'package.json': JSON.stringify({ type: 'module', scripts: { build: 'vite build' } }),
+      'index.html': '<script type="module" src="/src/main.ts"></script>\n',
+      'src/main.ts': 'export {};\n',
+      'src/server.ts': '// a typed server node cannot start\n',
+      'dist/index.html': page,
+      'dist/assets/app.js': 'export {};\n',
+    };
+    const root = workspace(files);
+    expect(classifyDeliveredWorkspace(root)).toEqual({ availability: 'available', kind: 'static', entry: null, unavailableReason: null });
+    expect(staticPreviewRoot(root)).toBe('dist');
+    expect(descriptorFor(root)).toMatchObject({ kind: 'static', entry: null, root: 'dist' });
+    expect(underStaticRoot('dist', '/assets/app.js')).toBe('/dist/assets/app.js');
+    expect(underStaticRoot('out/web site', '/')).toBe('/out/web%20site/');
+    // Through the in-flight manifest root, the copy holds the files and the source the record.
+    const { [PROBE_MANIFEST_FILENAME]: record, ...copied } = files;
+    expect(staticPreviewRoot(workspace(copied), { manifestRoot: workspace({ [PROBE_MANIFEST_FILENAME]: record }) })).toBe('dist');
+    const reading = (changed: Record<string, string>) => {
+      const changedRoot = workspace({ ...files, ...changed });
+      return [classifyDeliveredWorkspace(changedRoot).kind ?? classifyDeliveredWorkspace(changedRoot).unavailableReason, staticPreviewRoot(changedRoot)];
+    };
+    // Each of these keeps the reading it had before the built front-end was recognised.
+    // A server of the delivery itself was observed and is gone: package.json still says Node.
+    expect(reading({ [PROBE_MANIFEST_FILENAME]: manifest(built, scratch, httpEntry({ entry: 'server.js' })) })[0]).toBe('not-runnable');
+    expect([
+      // The scratch server answered something else at /: an API mock proves no page.
+      reading({ [PROBE_MANIFEST_FILENAME]: manifest(built, { ...scratch, body: '{"ok":true}' }) }),
+      reading({ [PROBE_MANIFEST_FILENAME]: manifest(built, { ...scratch, path: '/api/health' }) }),
+      reading({ [PROBE_MANIFEST_FILENAME]: manifest(built, { ...scratch, status: 404 }) }),
+      // The build changed since the server answered, or the checked page is gone.
+      reading({ 'dist/index.html': '<p>rebuilt</p>\n' }),
+      // No browser check at all, or one of the root page only.
+      reading({ [PROBE_MANIFEST_FILENAME]: manifest(scratch) }),
+      reading({ [PROBE_MANIFEST_FILENAME]: manifest(WEB_ENTRY, scratch) }),
+      // A directory a static host refuses to serve.
+      reading({ [PROBE_MANIFEST_FILENAME]: manifest({ ...built, file: '.output/index.html' }, scratch), '.output/index.html': page }),
+    ]).toEqual(new Array(7).fill(['not-runnable', null]));
+    // A startable server wins over the page, scratch probes or not, and names no root.
+    const node = workspace({ ...files, 'server.js': '// serves dist\n' });
+    expect(classifyDeliveredWorkspace(node)).toMatchObject({ kind: 'node', entry: 'server.js' });
+    expect(descriptorFor(node)).not.toHaveProperty('root');
+  });
+
+  it('leaves every other static site at its workspace root', () => {
+    const page = (file: string) => ({ ...WEB_ENTRY, file });
+    const site = { 'index.html': '<p>home</p>\n', 'about.html': '<p>about</p>\n', 'docs/index.html': '<p>docs</p>\n' };
+    const rootOf = (...entries: unknown[]) => staticPreviewRoot(workspace({ ...site, [PROBE_MANIFEST_FILENAME]: manifest(...entries) }));
+    // Pages checked under the workspace's own static server, nested ones included.
+    expect(rootOf(page('index.html'), page('docs/index.html'))).toBeNull();
+    expect(rootOf(page('docs/index.html'), httpEntry({ serverKind: 'static', body: '<p>docs</p>\n' }))).toBeNull();
+    expect(staticPreviewRoot(workspace(site))).toBeNull();
+    expect(staticPreviewRoot(workspace({ ...site, [PROBE_MANIFEST_FILENAME]: '{' }))).toBeNull();
+    expect(descriptorFor(workspace({ ...site, [PROBE_MANIFEST_FILENAME]: manifest(page('docs/index.html')) }))).not.toHaveProperty('root');
   });
 
   it('reads the same through the in-flight manifest root', () => {

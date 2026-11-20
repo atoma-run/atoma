@@ -88,6 +88,25 @@ it('redirects a retired address permanently to the current one, keeping path and
   expect((await call(port, 'weather-lab.app.atoma.run', 'http://evil.test/steal')).headers.location).toBe('https://cloud-desk.app.atoma.run/steal');
   expect((await call(port, 'unknown.app.atoma.run', '/')).status).toBe(404);
 });
+it('asks a static version served from a directory of its copy for paths under it, readiness included', async () => {
+  const asked: string[] = [];
+  const upstreamPort = await listen(createServer((req, res) => { asked.push(req.url ?? ''); res.writeHead(req.url?.startsWith('/dist/') ? 200 : 404); res.end(req.url === '/dist/' ? '<p>built</p>' : ''); }));
+  const row: HostedDeployment = { orgId: randomUUID(), projectId: randomUUID(), deploymentId: randomUUID(), runId: randomUUID(), manifestHash: 'a'.repeat(64), commitSha: 'b'.repeat(40), state: 'ready', kind: 'static', entry: 'index.js', root: 'dist', createdAt: new Date().toISOString(), error: null, hostPort: upstreamPort, image: 'image' };
+  const host = 'dvf.app.atoma.run';
+  const service = { deps: { store: { list: () => [row] } }, host: () => host, movedHost: () => null, swapping: () => null, status: vi.fn() } as unknown as HostingService;
+  const gateway = createHostingGateway(service, 'https://atoma.run', () => true);
+  const port = await listen(gateway.server);
+  const url = new URL(gateway.open({ orgId: row.orgId, principalId: randomUUID() } as Viewer, row.projectId));
+  const redeemed = await call(port, host, '/.atoma/claim', { origin: `https://${host}` }, JSON.stringify({ token: url.hash.slice(1) }));
+  const cookie = redeemed.headers['set-cookie']![0]!.split(';')[0]!;
+  expect((await call(port, host, '/', { cookie })).body).toBe('<p>built</p>');
+  await call(port, host, '/assets/app.js?v=2', { cookie });
+  // An absolute-form request target chooses neither the host nor a way out of the directory.
+  await call(port, host, 'http://evil.test/x', { cookie });
+  expect(asked).toEqual(['/dist/', '/dist/assets/app.js?v=2', '/dist/x']);
+  expect(await probeHostedApplication(upstreamPort)).toBe(false);
+  expect(await probeHostedApplication(upstreamPort, undefined, '/dist/')).toBe(true);
+});
 it('does not confuse a relay 502 with application readiness', async () => {
   let status = 502; const port = await listen(createServer((_req, res) => { res.writeHead(status); res.end(); }));
   expect(await probeHostedApplication(port)).toBe(false); status = 200; expect(await probeHostedApplication(port)).toBe(true);

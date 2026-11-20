@@ -57,6 +57,25 @@ it('status allocates nothing and deployment requires acceptance plus publication
   await expect(service.deploy(viewer, projectId, input())).rejects.toMatchObject({ status: 409 });
   expect(service.deps.store.list()).toEqual([]);
 });
+it('names a published version nothing can start, and deploys a built front-end from the directory its checks were served from (run df8e237e)', async () => {
+  const described = vi.spyOn(service.deps.previews, 'getDescriptor');
+  described.mockImplementation(() => ({ availability: 'unavailable', kind: null, entry: null, unavailableReason: 'not-runnable' }) as never);
+  // Not published yet: the card still asks for acceptance and publication.
+  expect(service.status(viewer, projectId)).not.toHaveProperty('candidateNotRunnable');
+  publish();
+  expect(service.status(viewer, projectId)).toMatchObject({ candidate: null, candidateNotRunnable: true });
+  await expect(service.deploy(viewer, projectId, input())).rejects.toMatchObject({ status: 409 });
+  described.mockImplementation(() => ({ availability: 'available', kind: 'static', entry: null, unavailableReason: null, root: 'dist' }) as never);
+  const status = service.status(viewer, projectId);
+  expect(status.candidate?.runId).toBe(runId); expect(status).not.toHaveProperty('candidateNotRunnable');
+  const probe = vi.spyOn(service.deps, 'probe');
+  await service.deploy(viewer, projectId, input()); await service.idle();
+  expect(service.deps.store.list()[0]).toMatchObject({ state: 'ready', kind: 'static', root: 'dist' });
+  expect(probe).toHaveBeenCalledWith(12345, '/dist/');
+  // A run delivery never described is not called unstartable.
+  described.mockReturnValue(null);
+  expect(service.status(viewer, projectId)).not.toHaveProperty('candidateNotRunnable');
+});
 it('deploys verified copied bytes, retains runtime through recovery, and stops without deleting data', async () => {
   publish(); await service.deploy(viewer, projectId, input()); await service.idle();
   const status = service.status(viewer, projectId);

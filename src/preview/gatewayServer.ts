@@ -1,4 +1,5 @@
 import { Duplex } from 'node:stream';
+import { underStaticRoot } from './descriptor.js';
 import {
   createServer,
   request as httpRequest,
@@ -63,6 +64,8 @@ export interface PreviewRoute {
   readonly connect?: () => Promise<Duplex>;
   /** Filesystem root of the materialised copy, for a static preview. */
   readonly workspaceRoot?: string;
+  /** The directory of the copy served as `/`, when not its root (`staticPreviewRoot`). */
+  readonly root?: string;
   /** Effective approved hosts, for the CSP. */
   readonly allowedHosts: readonly string[];
 }
@@ -312,7 +315,8 @@ export function startPreviewGateway(
     const root = route.workspaceRoot;
     if (!root) return refuse(res);
     // `/` and a directory resolve to index.html; there are no listings.
-    const decoded = decodeURIComponent(pathname);
+    // A built front-end is served from the directory its checks were served from.
+    const decoded = decodeURIComponent(route.root ? underStaticRoot(route.root, pathname) : pathname);
     const relative = decoded.endsWith('/') ? `${decoded}index.html` : decoded;
     const candidate = relative.replace(/^\/+/, '') || 'index.html';
     try {

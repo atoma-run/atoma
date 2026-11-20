@@ -223,7 +223,15 @@ export const previewDescriptorSchema = previewClassificationSchema.safeExtend({
   orgId: organisationIdSchema,
   requestedHosts: previewEgressHostsSchema,
   createdAt: instantSchema,
-});
+  /**
+   * The directory a STATIC preview serves as its root when it is not the
+   * workspace root: `dist` for a built front-end whose scratch server served
+   * it there under every browser check (2026-11-20). Absent or null: the
+   * workspace root, as every row before it. It lives on the descriptor, not
+   * on the four-field classification that crosses to executors and devices.
+   */
+  root: previewEntrySchema.refine((value) => !value.split('/').some((segment) => segment.startsWith('.')), 'a static root has no dot segment').nullable().optional(),
+}).refine((descriptor) => !descriptor.root || descriptor.kind === 'static', { path: ['root'], message: 'only a static preview names a root' });
 
 
 /* ───────────────────────────────── instance ───────────────────────────────── */

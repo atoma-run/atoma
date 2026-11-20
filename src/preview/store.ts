@@ -38,6 +38,8 @@ CREATE TABLE IF NOT EXISTS project_run_preview_descriptors (
   unavailable_reason            TEXT,
   requested_hosts_json          TEXT NOT NULL CHECK (json_valid(requested_hosts_json)),
   created_at                    TEXT NOT NULL,
+  -- The directory a static preview serves as its root, when not the workspace root.
+  static_root                   TEXT CHECK (static_root IS NULL OR kind IS 'static'),
   UNIQUE (project_run_id, org_id),
   FOREIGN KEY (project_run_id, org_id) REFERENCES project_runs(project_run_id, org_id),
   FOREIGN KEY (project_id, org_id) REFERENCES projects(project_id, org_id),
@@ -140,6 +142,7 @@ interface DescriptorRow {
   unavailable_reason: string | null;
   requested_hosts_json: string;
   created_at: string;
+  static_root?: string | null;
 }
 
 interface InstanceRow {
@@ -172,6 +175,7 @@ function descriptorFromRow(row: DescriptorRow): PreviewDescriptor {
     unavailableReason: row.unavailable_reason,
     requestedHosts: JSON.parse(row.requested_hosts_json) as unknown,
     createdAt: row.created_at,
+    ...(row.static_root ? { root: row.static_root } : {}),
   });
 }
 
@@ -214,6 +218,13 @@ export class PreviewStore {
       // added to the DDL above never reaches it. No backfill and no guess:
       // every instance that existed before in-flight previews did was a
       // preview of a delivered run, which is what the default says.
+      const descriptorColumns = (this.db.prepare('PRAGMA table_info(project_run_preview_descriptors)').all() as Array<{ name: string }>)
+        .map((column) => column.name);
+      if (!descriptorColumns.includes('static_root')) {
+        // Two processes open this store; the loser of the race finds the column there.
+        try { this.db.exec("ALTER TABLE project_run_preview_descriptors ADD COLUMN static_root TEXT CHECK (static_root IS NULL OR kind IS 'static')"); }
+        catch (error) { if (!/duplicate column name/i.test(error instanceof Error ? error.message : '')) throw error; }
+      }
       const columns = (
         this.db.prepare('PRAGMA table_info(project_run_preview_instances)').all() as Array<{
           name: string;
@@ -258,8 +269,8 @@ export class PreviewStore {
       .prepare(
         `INSERT INTO project_run_preview_descriptors
            (project_run_id, project_id, org_id, availability, kind, entry,
-            unavailable_reason, requested_hosts_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            unavailable_reason, requested_hosts_json, created_at, static_root)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(project_run_id) DO NOTHING`
       )
       .run(
@@ -271,7 +282,8 @@ export class PreviewStore {
         parsed.entry,
         parsed.unavailableReason,
         JSON.stringify(parsed.requestedHosts),
-        parsed.createdAt
+        parsed.createdAt,
+        parsed.root ?? null
       );
     const stored = this.getDescriptor(parsed.orgId, parsed.projectRunId);
     if (!stored) throw new Error('preview descriptor disappeared immediately after insertion');

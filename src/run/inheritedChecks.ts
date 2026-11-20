@@ -3,7 +3,7 @@ import { closeSync, lstatSync, openSync, readFileSync, renameSync, rmSync, write
 import { join } from 'node:path';
 import type { ToolExecutor } from '../core/types.js';
 import { PROBE_MANIFEST_FILENAME } from '../contracts/probeManifest.js';
-import { classifyDeliveredWorkspace } from '../preview/descriptor.js';
+import { classifyDeliveredWorkspace, staticPreviewRoot } from '../preview/descriptor.js';
 import { secureReadWorkspaceFile, DEFAULT_ARTIFACT_LIMITS } from '../projects/artifacts.js';
 import type { InheritedWorkspaceState, WorkspaceRuntime } from '../contracts/workspaceRuntime.js';
 import {
@@ -244,6 +244,13 @@ export function inheritedChecksFor(args: {
   const classification = args.workspace?.state?.classification ?? descriptor?.kind ?? descriptor?.unavailableReason ?? 'unknown';
   if (classification !== 'static') {
     args.log(`inherited checks: ${inherited.length} not replayed, the workspace is not a static page (${classification})`);
+    return undefined;
+  }
+  // A page served from a directory of the workspace is a BUILD OUTPUT: its
+  // checks ran under the run's own server, and a replay from the workspace
+  // root would judge a stale or differently addressed build (2026-11-20).
+  if (!args.workspace && staticPreviewRoot(args.workspaceRoot) !== null) {
+    args.log(`inherited checks: ${inherited.length} not replayed, the checked page is a build output`);
     return undefined;
   }
   const selected: IndexedCheck[] = inherited.filter((item) => args.workspace

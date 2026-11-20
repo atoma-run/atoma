@@ -1331,8 +1331,8 @@ async function startHostingRuntime() {
       await publisher.materializePublishedSource(row, destinationRoot);
     },
     previews: PreviewStore.open(DBS[0]!.path), launcher: new HostingClient(socket), domain: config.domain, maxDeployments: config.maxDeployments,
-    events: emit, namer: HOSTING_NAMER, copyOwnership: ownership, probe: probeHostedApplication,
-    healthProbe: port => probeHostedApplication(port, HOSTING_HEALTH.timeoutMs) });
+    events: emit, namer: HOSTING_NAMER, copyOwnership: ownership, probe: (port, path) => probeHostedApplication(port, undefined, path),
+    healthProbe: (port, path) => probeHostedApplication(port, HOSTING_HEALTH.timeoutMs, path) });
   await service.recover();
   const gateway = createHostingGateway(service, AUTH_RUNTIME.publicOrigin.origin,
     (org, principal) => AUTH!.store!.listOrganisationsForPrincipal(principal).some(m => m.orgId === org),

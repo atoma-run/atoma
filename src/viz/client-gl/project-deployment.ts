@@ -270,7 +270,7 @@ export function hostingCopy(view: DeploymentSettingsView) {
     : next === 'restore' && restarting ? 'hosting.restart.ready'
     : next === 'restore' || candidateFailed ? 'hosting.outcome.failed'
     : next ? 'hosting.update.startable'
-    : !candidate && !online ? 'hosting.update.none' : null;
+    : !candidate && !online ? (hosting?.candidateNotRunnable ? 'hosting.update.notRunnable' : 'hosting.update.none') : null;
   const primary: HostingControl | null = !next || !view.canEdit || confirming ? null
     : { id: `hosting.${next}`, ...(next === 'restore' && restarting ? { label: 'hosting.restart' }
       : candidateFailed && next !== 'restore' ? { label: 'hosting.retry' } : {}), disabled: busy };

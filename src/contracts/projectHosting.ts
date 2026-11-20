@@ -33,6 +33,13 @@ export const hostedDeploymentSchema = hostingIdentitySchema.extend({
   runId: z.string().uuid(), manifestHash: z.string(), commitSha: z.string(),
   state: z.enum(['starting', 'ready', 'failed', 'stopped']),
   kind: z.enum(['node', 'static']), entry: z.string(), browser: z.boolean().optional(),
+  /**
+   * The directory of the accepted copy a static deployment serves as `/`
+   * when it is not the root (the run's preview descriptor, 2026-11-20): the
+   * gateway asks the runtime for paths under it, readiness included. Absent
+   * on every other row.
+   */
+  root: z.string().min(1).max(512).optional(),
   createdAt: z.string(), error: z.enum(['startup-failed', 'runtime-unavailable', 'interrupted', 'cleanup-failed']).nullable(),
   hostPort: z.number().int().nullable(), image: z.string().nullable(),
   /**
@@ -100,6 +107,12 @@ export const hostingSummarySchema = z.object({
   /** The project's stable address, assigned before its first deployment; null until then. */
   address: z.string().nullable(),
   candidate: hostingVersionSchema.extend({ manifestHash: z.string() }).nullable(),
+  /**
+   * True when the accepted version is published and retained, yet nothing in
+   * it can be started (its preview descriptor is unavailable): the card says
+   * so instead of asking again for an acceptance already given (2026-11-20).
+   */
+  candidateNotRunnable: z.boolean().optional(),
   /** The version `runId`/`commitSha` name, in words; null when nothing was ever deployed. */
   version: hostingVersionSchema.nullable(),
   /**

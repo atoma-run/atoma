@@ -144,12 +144,81 @@ function httpProbesOutlivedTheirServer(workspaceRoot: string, entries: readonly 
   const stamps = records.filter((entry) => entryKind(entry) === 'http').map((entry) => relativePath(entry['entry']));
   // A server started from an `.atoma-*` path was never this delivery's: as gone as a deleted one.
   if (stamps.length === 0 || stamps.some((stamp) => stamp === null || (!hostInternal(stamp) && !stampedServerGone(workspaceRoot, stamp)))) return false;
-  if (hasPackageJson(workspaceRoot)) return false;
+  // `package.json` says a Node project lives on under another name, unless
+  // no server of the delivery was ever observed (every stamp is `.atoma-*`)
+  // and a scratch server served the checked page from its own root: a built
+  // front-end, which carries a `package.json` by construction.
+  if (hasPackageJson(workspaceRoot) && (stamps.some((stamp) => stamp !== null && !hostInternal(stamp)) || scratchServedRoot(workspaceRoot, entries) === null)) return false;
   return records.some((entry) => {
     if (entryKind(entry) !== 'web') return false;
     const file = typeof entry['file'] === 'string' ? servableCheckFile(entry['file']) : null;
     return file !== null && previewWorkspaceHasFile(workspaceRoot, file);
   });
+}
+
+/** How much of a response body the manifest keeps (`fetch_url record:true`). */
+const RECORDED_BODY_CHARS = 200;
+
+/**
+ * The directory a scratch server served as its root, when that root holds the
+ * page a browser checked: `dist` for a built front-end. Null otherwise.
+ *
+ * Three machine facts must agree, newest first: a web entry names a servable
+ * `<dir>/index.html` still present; an http entry stamped under an `.atoma-*`
+ * path answered GET `/` with 200; and what it answered begins as that file
+ * does (the manifest keeps the first 200 characters). The server then served
+ * `<dir>` as its root, which is how the page's own addresses resolved under
+ * every check, root-absolute ones included. Run df8e237e (2026-11-20) built a
+ * Vite front-end into `dist/`, served it from `.atoma-scratch/serve-build.mjs`
+ * and checked `dist/index.html` twelve times; the delivery was `not-runnable`.
+ * A scratch API mock, a page checked at the workspace root and a directory a
+ * static host refuses (a dot segment) name no root.
+ */
+function scratchServedRoot(workspaceRoot: string, entries: readonly unknown[]): string | null {
+  const records = entries.filter(isRecord);
+  const served = records.filter((entry) => {
+    const stamp = relativePath(entry['entry']);
+    return entryKind(entry) === 'http' && stamp !== null && hostInternal(stamp) && entry['status'] === 200
+      && (entry['method'] === undefined || entry['method'] === 'GET') && entry['path'] === '/'
+      && typeof entry['body'] === 'string' && entry['body'].length > 0;
+  }).map((entry) => entry['body'] as string);
+  if (served.length === 0) return null;
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const entry = records[index]!;
+    if (entryKind(entry) !== 'web' || typeof entry['file'] !== 'string') continue;
+    const file = servableCheckFile(entry['file']);
+    if (file === null || !file.endsWith(`/${STATIC_INDEX}`)) continue;
+    const root = file.slice(0, -(STATIC_INDEX.length + 1));
+    if (root.split('/').some((segment) => segment.startsWith('.')) || !previewWorkspaceHasFile(workspaceRoot, file)) continue;
+    let head: string;
+    try {
+      head = (readPreviewClassifierFile(workspaceRoot, file) ?? '').slice(0, RECORDED_BODY_CHARS);
+    } catch {
+      continue;
+    }
+    if (head.length > 0 && served.some((body) => body.slice(0, RECORDED_BODY_CHARS) === head)) return root;
+  }
+  return null;
+}
+
+/**
+ * The directory a STATIC preview serves as its root when it is not the
+ * workspace root (`scratchServedRoot`), read from the manifest and the files.
+ * Unreadable evidence names none: the workspace root is the answer it always was.
+ */
+export function staticPreviewRoot(workspaceRoot: string, options: { readonly manifestRoot?: string } = {}): string | null {
+  try {
+    const raw = readPreviewClassifierFile(options.manifestRoot ?? workspaceRoot, PROBE_MANIFEST_FILENAME);
+    const document = raw === null ? null : probeManifestSchema.safeParse(JSON.parse(raw));
+    return document?.success ? scratchServedRoot(workspaceRoot, document.data.entries) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The address of `pathname` under a static root: `/dist/assets/app.js` for `/assets/app.js`. */
+export function underStaticRoot(root: string, pathname: string): string {
+  return `/${root.split('/').map(encodeURIComponent).join('/')}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
 }
 
 /** `package.json`'s `main`, only when it names a regular file in this tree. */
@@ -313,7 +382,9 @@ export function buildPreviewDescriptor(input: {
   readonly now?: Date;
 }): PreviewDescriptor {
   const classification = input.remoteClassification ?? classifyDeliveredWorkspace(input.workspaceRoot);
+  const root = classification.kind === 'static' ? staticPreviewRoot(input.workspaceRoot) : null;
   return previewDescriptorSchema.parse({
+    ...(root ? { root } : {}),
     projectRunId: input.projectRunId,
     projectId: input.projectId,
     orgId: input.orgId,

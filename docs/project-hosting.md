@@ -9,7 +9,9 @@ as online. Open application admits current organisation members only.
 ## Supported runtime
 
 The initial hosted runtime supports delivered static sites and Node applications
-whose delivery descriptor resolves an entry. It revalidates the accepted delivery,
+whose delivery descriptor resolves an entry. A built front-end whose run served and
+checked its build directory (`dist/index.html`) is a static site served from
+that directory. It revalidates the accepted delivery,
 then copies and verifies the exact Git commit recorded by its publication receipt,
 including client files preserved during publication. Later branch edits are not
 deployed. The accepted runtime capability and entry must still match; a source

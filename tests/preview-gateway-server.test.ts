@@ -248,6 +248,22 @@ describe('preview gateway static serving', () => {
     expect(header(reply, 'x-content-type-options')).toBe('nosniff');
   });
 
+  it('serves a built front-end from the directory its checks were served from', async () => {
+    mkdirSync(join(workspace, 'dist', 'assets'), { recursive: true });
+    writeFileSync(join(workspace, 'dist', 'index.html'), '<h1>built</h1>');
+    writeFileSync(join(workspace, 'dist', 'assets', 'app.js'), 'export {};');
+    const { port, claims } = await gateway({ ...staticRoute(), root: 'dist' });
+    const cookie = await grantCookie(port, claims);
+
+    expect((await call(port, '/', { headers: { cookie } })).body).toBe('<h1>built</h1>');
+    // A root-absolute asset address resolves as it did under the run's own server.
+    expect((await call(port, '/assets/app.js', { headers: { cookie } })).body).toBe('export {};');
+    // Nothing above that directory is reachable, however it is spelled.
+    for (const path of ['/../index.html', '/%2e%2e/index.html', '/dist/index.html']) {
+      expect((await call(port, path, { headers: { cookie } })).body).not.toBe('<h1>delivered</h1>');
+    }
+  });
+
   it('appends the Atoma badge to a page the browser navigates to, and only to that', async () => {
     writeFileSync(join(workspace, 'app.js'), 'export {};');
     const { port, claims } = await gateway(staticRoute());

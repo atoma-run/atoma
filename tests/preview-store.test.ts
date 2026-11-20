@@ -190,6 +190,20 @@ describe('PreviewStore — the descriptor is written once and never revised', ()
     expect(preview.getDescriptor(s.alice.orgId, s.projectRunId)).toEqual(first);
   });
 
+  it('keeps the directory a static preview serves, on a store created before the column existed too', () => {
+    const s = scene();
+    const page: PreviewDescriptor = { ...nodeDescriptor({ ...s, orgId: s.alice.orgId }), kind: 'static', entry: null, root: 'dist' };
+    // A store an earlier build created: the same table without the column.
+    db.exec('DROP TRIGGER project_run_preview_descriptors_immutable; ALTER TABLE project_run_preview_descriptors DROP COLUMN static_root');
+    preview = new PreviewStore(db);
+    expect(preview.putDescriptor(page)).toEqual(page);
+    expect(preview.getDescriptor(s.alice.orgId, s.projectRunId)).toEqual(page);
+    // Only a static preview names one, in the contract and in the table.
+    expect(() => preview.putDescriptor({ ...page, kind: 'node', entry: 'server.js' })).toThrow();
+    expect(() => preview.putDescriptor({ ...page, root: '.output/public' })).toThrow();
+    expect(() => db.prepare("UPDATE project_run_preview_descriptors SET static_root = 'out'").run()).toThrow(/immutable/);
+  });
+
   it('refuses an UPDATE at the SQLite level, not only in the writer', () => {
     const s = scene();
     preview.putDescriptor(nodeDescriptor({ ...s, orgId: s.alice.orgId }));

@@ -157,6 +157,19 @@ very directory EMPTY before copying from it.
   The lineage passes over landed seeds, which never get a descriptor, and the
   nearest DESCRIBED run decides alone (bdbd6e7f, seeded from partial 0c35ed5a,
   2026-10-30). Only host-written descriptors and a host file check are read.
+- A built front-end is `static`, served from its build directory
+  (`scratchServedRoot`, 2026-11-20). Asked where `package.json` would veto
+  the exception above, and only when EVERY http stamp is under an `.atoma-*`
+  path: a web entry names a `<dir>/index.html` still present, and a scratch
+  server answered GET `/` with what that file begins with. `<dir>` is then the
+  descriptor's `root` (null: the workspace root), never part of the four-field
+  classification that crosses to executors and devices; both gateways serve
+  `/` from it, root-absolute asset addresses included, and hosting's readiness
+  asks there. Run df8e237e served its Vite build from `.atoma-scratch/`, a
+  browser validated `dist/index.html` twelve times, and the delivery was
+  `not-runnable`: no preview, nothing to deploy. Its inherited checks are not
+  replayed (a build output is not its own source), and a Compute device, which
+  receives no root, still classifies and serves as before.
 - The answer is TOTAL: every delivered run gets a descriptor, available with a
   kind or unavailable with a bounded reason. A control that fails after the
   click is worse than a stated absence.
@@ -617,5 +630,11 @@ shows the mark.
 - **Writing the Atoma footer into the deliverable.** That is a change no run
   verified, it would reach the tenant's repository, and the next run could
   delete or duplicate it. The gateways add the mark to what they serve.
+- **Opening a nested checked page by redirect, or trusting any `.atoma-*`
+  stamp as proof of a static site** (2026-11-20, refused in review): the first
+  moved `/` of multi-page sites onto a subpage and broke builds with
+  root-absolute assets; the second turned Node projects whose own server was
+  never stamped into server-less pages. Reading the HTML for its script
+  addresses was refused too: file content is not machine observation.
 - **`npm install` at open time.** A missing `node_modules` is a bounded failure,
   not a network operation on a member's click.

@@ -106,6 +106,11 @@ function summary(overrides: Partial<Summary> = {}): Summary {
 const settings = (hosting: DeploymentSettingsView['hosting'], overrides: Partial<DeploymentSettingsView> = {}): DeploymentSettingsView =>
   ({ projectId: 'project-1', hosting, destination: 'atoma', saved: 'atoma', canEdit: true, busy: false, status: 'idle', ...overrides });
 
+it('says an accepted, published version holds nothing to start instead of asking again for the acceptance', () => {
+  const offline = { state: 'not-deployed', deploymentId: null, runId: null, commitSha: null, url: null, version: null, candidate: null, updateStops: false } as const;
+  expect(hostingCopy(settings(summary(offline)))).toMatchObject({ update: 'hosting.update.none', primary: null });
+  expect(hostingCopy(settings(summary({ ...offline, candidateNotRunnable: true })))).toMatchObject({ update: 'hosting.update.notRunnable', primary: null });
+});
 it('shows only what applies: nothing to update when the online version is the latest, one update for a newer one', () => {
   const current = hostingCopy(settings(summary({ candidate: { ...summary().candidate!, runId: RUN_A, commitSha: a } })))!;
   expect(current).toMatchObject({ tone: 'success', address: 'https://attica.app.atoma.run/', update: null, primary: null, confirm: null,

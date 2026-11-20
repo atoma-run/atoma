@@ -1,4 +1,5 @@
 import { createServer, request, type IncomingMessage, type ServerResponse } from 'node:http';
+import { underStaticRoot } from '../preview/descriptor.js';
 import { randomBytes } from 'node:crypto';
 import { PreviewClaimRegistry, mintPreviewClaim } from '../preview/claims.js';
 import { previewResponseHeaders, sanitizeRequestHeaders, sanitizeResponseHeaders, isSamePreviewRedirect } from '../preview/gateway.js';
@@ -137,7 +138,11 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
     // `/.atoma/browser/` is the platform's desktop, not the application.
     const attribute = !pathname.startsWith('/.atoma/') && isAttributableRequest(req.method, req.headers) && attribution(served.orgId);
     if (attribute) headers['accept-encoding'] = 'identity';
-    const upstream = request({ host: '127.0.0.1', port: served.hostPort!, path: req.url, method: req.method, headers, timeout: 30_000 }, incoming => {
+    // A static version served from a directory of its copy (a built front-end):
+    // only the parsed path and query cross, under that directory.
+    const parsed = new URL(req.url ?? '/', origin);
+    const upstreamPath = served.root && served.kind === 'static' ? `${underStaticRoot(served.root, parsed.pathname)}${parsed.search}` : req.url;
+    const upstream = request({ host: '127.0.0.1', port: served.hostPort!, path: upstreamPath, method: req.method, headers, timeout: 30_000 }, incoming => {
       if (incoming.headers.location && !isSamePreviewRedirect(incoming.headers.location, origin)) { incoming.destroy(); respond(res, 502); return; }
       // The relay's own 502 when the update began after this request was forwarded.
       if (incoming.statusCode === 502 && service.swapping(host)) { incoming.destroy(); updating(res); return; }
