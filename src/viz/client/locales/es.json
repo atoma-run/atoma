@@ -2885,5 +2885,6 @@
   "wit.truncated": "Extracto de la salida; abre el run para ver el registro completo.",
   "wit.open": "Abrir run de origen",
   "wit.details": "Llamadas directas a Wit registradas en las trazas de los runs. La comprobación compara el texto aportado como evidencia con la salida del comando; no determina la aceptación ni la relevancia de la fuente. La generación actualiza el texto. No se detectan los comandos incluidos en scripts. Aquí no se vuelve a ejecutar ningún comando. Una comprobación puede superarse sin evidencias; no se evalúan los cambios posteriores en el documento.",
-  "assistant.latestMessages": "Mensajes más recientes"
+  "assistant.latestMessages": "Mensajes más recientes",
+  "hosting.update.notRunnable": "La versión aceptada está publicada, pero Atoma no encontró en ella ninguna página web ni servidor que iniciar. Solicita una versión que se ejecute como aplicación web y, después, acéptala."
 }
