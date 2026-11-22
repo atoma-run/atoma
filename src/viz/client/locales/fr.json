@@ -2886,5 +2886,9 @@
   "wit.open": "Ouvrir le run source",
   "wit.details": "Appels directs à Wit enregistrés dans les traces du run. La vérification compare le texte attesté à la sortie de la commande ; elle n’établit ni son acceptation ni la pertinence de la source. La génération met à jour le texte. Les commandes contenues dans des scripts ne sont pas détectées. Aucune commande n’est réexécutée ici. Une vérification peut réussir sans attestations ; les modifications ultérieures du document ne sont pas évaluées.",
   "assistant.latestMessages": "Derniers messages",
-  "hosting.update.notRunnable": "La version acceptée est publiée, mais atoma n’y a trouvé aucune page web ni aucun serveur à démarrer. Demande une version qui s’exécute comme application web, puis accepte-la."
+  "hosting.update.notRunnable": "La version acceptée est publiée, mais atoma n’y a trouvé aucune page web ni aucun serveur à démarrer. Demande une version qui s’exécute comme application web, puis accepte-la.",
+  "runs.filters.allEvents": "Tous les événements",
+  "runs.filters.active": "Filtres ({{count}})",
+  "runs.filters.kind": "Type d’événement",
+  "runs.filters.role": "Rôle"
 }

@@ -2886,5 +2886,9 @@
   "wit.open": "Quell-Run öffnen",
   "wit.details": "Aufgezeichnete direkte Wit-Aufrufe in Run-Ablaufprotokollen. Die Prüfung vergleicht belegten Text mit der Befehlsausgabe; sie bestätigt weder die Akzeptanz noch die Relevanz der Quelle. Die Generierung aktualisiert Text. Befehle in Skripten werden nicht erkannt. Hier werden keine Befehle erneut ausgeführt. Eine Prüfung kann ohne Belege erfolgreich sein; spätere Änderungen am Dokument werden nicht bewertet.",
   "assistant.latestMessages": "Neueste Nachrichten",
-  "hosting.update.notRunnable": "Die akzeptierte Version wurde veröffentlicht, aber Atoma hat darin keine Webseite und keinen Server zum Starten gefunden. Fordern Sie eine Version an, die als Webanwendung ausgeführt werden kann, und akzeptieren Sie sie anschließend."
+  "hosting.update.notRunnable": "Die akzeptierte Version wurde veröffentlicht, aber Atoma hat darin keine Webseite und keinen Server zum Starten gefunden. Fordern Sie eine Version an, die als Webanwendung ausgeführt werden kann, und akzeptieren Sie sie anschließend.",
+  "runs.filters.allEvents": "Alle Ereignisse",
+  "runs.filters.active": "Filter ({{count}})",
+  "runs.filters.kind": "Ereignistyp",
+  "runs.filters.role": "Rolle"
 }
