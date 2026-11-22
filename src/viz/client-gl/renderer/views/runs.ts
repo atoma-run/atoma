@@ -19,7 +19,6 @@ import {
   runStatus,
   runUsageValue,
   tryParseJson,
-  visibleEventKindFilters,
 } from '../../../client/run-utils.js';
 import {
   buildTimelineLayout,
@@ -29,7 +28,6 @@ import {
 import {
   buildSkillEventDetail,
   buildStructuredDetail,
-  eventRoleLabel,
   filePathFromArgs,
   skillEventTitle,
   type StructuredDetailField,
@@ -37,7 +35,7 @@ import {
   type StructuredDetailSection,
 } from '../../../client/structured-detail.js';
 import type { AtomView, RunStatus } from '../../../client/run-utils.js';
-import { clockTime } from '../../../client/date-format.js';
+import { clockTime, dateTimeFormat } from '../../../client/date-format.js';
 import { eventParticipants, eventDetailPayload } from '../../../client/event-participants.js';
 import { llmDetailNodes } from '../../../client/llm-detail.js';
 import { explainEvent } from '../../../client/event-explanation.js';
@@ -47,10 +45,9 @@ import type { GpuRenderSnapshot, RendererCtx } from '../../gpu-renderer.js';
 import { GPU_COLORS, GPU_LAYOUT } from '../../theme.js';
 import {
   FILTER_BLOCK_GAP,
-  FILTER_BUTTON_HEIGHT_DENSE,
+  FILTER_BUTTON_HEIGHT,
   FILTER_BUTTON_LABEL_SIZE,
   FILTER_BUTTON_LABEL_SIZE_COMPACT,
-  FILTER_BUTTON_LABEL_SIZE_DENSE,
   layoutAtomLaneBlocks,
   layoutFilterChipBlock,
   layoutRunFilterBlocks,
@@ -75,7 +72,8 @@ import {
   nowDescription,
   scalar,
   timelineBranchColor,
-  timelineBranchLabel,
+  runFilterChoices,
+  runFilterToggleLabel,
   timelineItemCardCopy,
   truncate,
 } from '../copy.js';
@@ -88,7 +86,6 @@ import { drawTimelineMinimap, TIMELINE_MINIMAP_WIDTH } from '../timeline-minimap
 import {
   viewFrame,
   VIEW_FRAME_CONTENT_TOP,
-  VIEW_FRAME_TITLE_SIZE,
   VIEW_FRAME_TITLE_Y,
 } from '../view-frame.js';
 import { drawAtomDetail } from './atom-detail.js';
@@ -116,25 +113,13 @@ export const RUN_STATUS_COLOR: Record<RunStatus, number> = {
   abandoned: GPU_COLORS.warning,
 };
 
-/** Characters of a branch title shown on its dense filter segment. */
-const BRANCH_CHIP_TITLE_LENGTH = 72;
 const RUN_ACTION_MAX_WIDTH = 180;
 const RUN_ACTION_HEIGHT = 30;
 const RUN_ACTION_ROW_PITCH = 40;
 const RUN_ACTION_GAP = 8;
 
-/**
- * Where each of the run's actions goes, from its MEASURED natural width. One
- * row of equal buttons while every label fits that share; otherwise each
- * keeps its own width and the row wraps, so a narrow pane gains a row rather
- * than ellipses. Offsets are relative to the row's top-left corner.
- */
+/** Keep each action at its measured width and wrap in reading order. */
 export function layoutRunActions(naturals: readonly number[], available: number): { x: number; y: number; width: number }[] {
-  const count = Math.max(1, naturals.length);
-  const uniform = Math.min(RUN_ACTION_MAX_WIDTH, (available - RUN_ACTION_GAP * (count - 1)) / count);
-  if (naturals.every(natural => Math.min(RUN_ACTION_MAX_WIDTH, natural) <= uniform)) {
-    return naturals.map((_, index) => ({ x: index * (uniform + RUN_ACTION_GAP), y: 0, width: uniform }));
-  }
   let x = 0, y = 0;
   return naturals.map(natural => {
     const width = Math.min(RUN_ACTION_MAX_WIDTH, natural, available);
@@ -274,36 +259,17 @@ const COLLAPSED_TITLE_CHARS = 110;
  * silently remove event/atom detail between 1050px and 1257px windows.
  */
 export const RUNS_TWO_PANE_MIN_WIDTH = 1050 - GPU_LAYOUT.sidebarWidth;
-/**
- * The row that says WHICH PROJECT this run belongs to.
- *
- * It sits above the run selector, and above it on purpose: a project contains
- * runs, so a reader who has scrolled into a timeline should find the container
- * first and the run second (owner request, 2026-09-22). The row is always
- * reserved, never conditional — the selector's geometry is shared with the
- * native control the DOM bridge positions, and a height that depended on the
- * data would be two definitions of one layout waiting to disagree. A run with
- * no project says so instead of leaving the row blank.
- *
- * It is titled on the SAME terms as every other view, and with their numbers
- * rather than a second set that merely looks similar: `VIEW_FRAME_TITLE_SIZE`
- * at `VIEW_FRAME_TITLE_Y`, with the first control at `VIEW_FRAME_CONTENT_TOP`.
- * It was 13px at y=8 with the selector 22px under it, which read as a caption
- * squeezed against the control rather than a heading with air (owner, the
- * same day). The constant below is what that band pushed everything else down
- * by: the panel used to open on the selector at `top + 8`.
- */
+/** The first band holds project navigation and run metadata above the native picker. */
 export const RUNS_PROJECT_TITLE_HEIGHT = VIEW_FRAME_CONTENT_TOP - 8;
-const RUNS_PROJECT_TITLE_TOP = VIEW_FRAME_TITLE_Y;
-const RUNS_PROJECT_TITLE_SIZE = VIEW_FRAME_TITLE_SIZE;
+const RUNS_PROJECT_TITLE_TOP = VIEW_FRAME_TITLE_Y + 6;
 
 /** Native run selector geometry inside the primary Runs panel. */
 export const RUN_PICKER_CONTROL_TOP =
   GPU_LAYOUT.headerHeight + GPU_LAYOUT.gap + 8 + RUNS_PROJECT_TITLE_HEIGHT;
-export const RUN_PICKER_CONTROL_HEIGHT = 32;
+export const RUN_PICKER_CONTROL_HEIGHT = 40;
 export const RUN_PICKER_HORIZONTAL_INSET = 14;
-/** Space kept for the status chip at the right of the selector. */
-export const RUN_PICKER_STATUS_RESERVE = 128;
+/** Leave room for navigation even when a translated status label is long. */
+const RUN_STATUS_MAX_WIDTH = 180;
 
 export interface RunsPaneLayout {
   readonly top: number;
@@ -343,19 +309,13 @@ export function runsPickerControlLayout(width: number): {
     y: RUN_PICKER_CONTROL_TOP,
     width: Math.max(
       0,
-      pane.leftWidth - RUN_PICKER_HORIZONTAL_INSET * 2 - RUN_PICKER_STATUS_RESERVE
+      pane.leftWidth - RUN_PICKER_HORIZONTAL_INSET * 2
     ),
     height: RUN_PICKER_CONTROL_HEIGHT,
   };
 }
 
-/**
- * The Runs title row. A project run reads `All projects › <project> › <run>`,
- * the first two links; the run's segment is its short title, falling back to
- * the goal until the run is named. Ancestors are fitted to a share of the row
- * so the run's own name always keeps room. An operator run has no project to
- * return to and keeps its muted label.
- */
+/** Ancestors navigate, the final segment identifies the current run. */
 function drawRunsBreadcrumb(
   ctx: RendererCtx,
   snapshot: GpuRenderSnapshot,
@@ -364,7 +324,7 @@ function drawRunsBreadcrumb(
   y: number,
   width: number
 ): void {
-  const titleStyle = { size: RUNS_PROJECT_TITLE_SIZE, weight: '700' } as const;
+  const titleStyle = { size: 13, weight: '600' } as const;
   const projectId = entry?.projectId;
   const projectName = entry?.projectName;
   const number = projectId && entry ? projectRunNumber(snapshot.data.projectRuns?.[projectId] ?? [], entry.projectRunId ?? entry.id) : null;
@@ -374,15 +334,22 @@ function drawRunsBreadcrumb(
       x, y, { ...titleStyle, color: projectName ? GPU_COLORS.text : GPU_COLORS.muted, singleLine: true });
     return;
   }
-  const linkStyle = { ...titleStyle, color: GPU_COLORS.primary } as const;
+  const linkStyle = { ...titleStyle, color: GPU_COLORS.muted } as const;
   const separatorWidth = CHEVRON_SPACE;
+  const current = numberLabel ?? snapshot.t('nav.runs');
+  const allProjects = snapshot.t('projects.all');
+  const currentWidth = ctx.measureText(current, titleStyle);
+  const allWidth = ctx.measureText(allProjects, linkStyle);
+  const room = width - currentWidth - separatorWidth;
+  const showAll = room >= allWidth + separatorWidth + Math.min(72, ctx.measureText(projectName, linkStyle));
   const crumbs = [
-    { id: 'runs.projects.all', label: snapshot.t('projects.all'), share: 0.25 },
-    { id: `runs.project.open.${projectId}`, label: projectName, share: 0.3 },
+    ...(showAll ? [{ id: 'runs.projects.all', label: allProjects, width: allWidth }] : []),
+    { id: `runs.project.open.${projectId}`, label: projectName, width: room - (showAll ? allWidth + separatorWidth : 0) },
   ];
   let cursor = x;
   for (const crumb of crumbs) {
-    const label = ctx.fitText(crumb.label, Math.max(0, width * crumb.share), linkStyle);
+    if (crumb.width < 12) continue;
+    const label = ctx.fitText(crumb.label, crumb.width, linkStyle);
     const labelWidth = ctx.measureText(label, linkStyle);
     const linkText = ctx.text(ctx.root, label, cursor, y, { ...linkStyle, singleLine: true });
     ctx.linkRegion(ctx.root, crumb.id, crumb.label, cursor, y - 4, labelWidth, 28, snapshot.onActivate);
@@ -391,14 +358,7 @@ function drawRunsBreadcrumb(
       y + (linkText.height - CHEVRON_SIZE) / 2, GPU_COLORS.muted, 'right');
     cursor += separatorWidth;
   }
-  if (numberLabel) {
-    const label = ctx.fitText(numberLabel, Math.max(0, x + width - cursor), titleStyle);
-    ctx.text(ctx.root, label, cursor, y, { ...titleStyle, singleLine: true });
-    cursor += ctx.measureText(label, titleStyle) + 8;
-  }
-  const runTitle = snapshot.state.runActivityOpen
-    ? snapshot.t('activity.title') : (entry.title ?? entry.goal ?? entry.label).replace(/\s+/g, ' ');
-  ctx.text(ctx.root, ctx.fitText(runTitle, Math.max(0, x + width - cursor), titleStyle),
+  ctx.text(ctx.root, ctx.fitText(current, Math.max(0, x + width - cursor), titleStyle),
     cursor, y, { ...titleStyle, singleLine: true });
 }
 
@@ -464,10 +424,7 @@ export function drawRuns(
   // WHERE this run lives. The trace itself does not carry its project — the
   // INDEX entry does — so it is read from the same list the selector is built
   // from, by the id the selector selected.
-  // A project run is titled by its breadcrumb — All projects › project › run —
-  // the Projects view's own “All projects ›” trail carried one level deeper.
   const indexEntry = snapshot.data.runs.find((entry) => entry.id === run.id);
-  drawRunsBreadcrumb(ctx, snapshot, indexEntry, leftX + 14, top + RUNS_PROJECT_TITLE_TOP, leftWidth - 28);
   // What happened to this run, always visible: the header used to flag only
   // LIVE, so a cancelled or failed run looked exactly like a delivered one
   // (2026-08-15 review of a real cancelled run).
@@ -481,12 +438,12 @@ export function drawRuns(
   const statusIconSpace = status === 'live' ? 18 : 0;
   const statusTextStyle = { size: 10, weight: '700' } as const;
   const statusWidth = Math.min(
-    RUN_PICKER_STATUS_RESERVE,
-    leftWidth - RUN_PICKER_HORIZONTAL_INSET * 2,
+    RUN_STATUS_MAX_WIDTH,
+    leftWidth * 0.4,
     Math.max(64, Math.ceil(ctx.measureText(statusLabel, statusTextStyle)) + statusIconSpace + 16)
   );
   const statusX = leftX + leftWidth - statusWidth - 14;
-  const statusY = top + 8 + RUNS_PROJECT_TITLE_HEIGHT;
+  const statusY = top + 4;
   const statusChip = new Graphics();
   statusChip.roundRect(statusX, statusY, statusWidth, 20, 6);
   statusChip.fill({ color: statusColor, alpha: 0.16 });
@@ -508,14 +465,18 @@ export function drawRuns(
   // Keep the run's age directly below its status, sharing the right edge.
   // The exact instant remains available on hover in the reader's locale.
   const startedAge = ctx.relativeTime(run.startedAt, snapshot.t, snapshot.state.locale);
+  const ageStyle = { size: 11, color: GPU_COLORS.muted } as const;
+  const ageBudget = Math.min(leftWidth * 0.4, 240);
+  const at = Date.parse(run.startedAt);
+  const ageLabel = ctx.measureText(startedAge, ageStyle) > ageBudget && Number.isFinite(at)
+    ? dateTimeFormat(snapshot.state.locale, { dateStyle: 'short' }).format(at) : startedAge;
   const ageRight = statusX + statusWidth;
-  const ageY = statusY + 26;
-  const ageText = ctx.text(ctx.root, startedAge, ageRight, ageY, {
-    size: 11,
-    color: GPU_COLORS.muted,
-    width: Math.min(RUN_PICKER_STATUS_RESERVE, leftWidth - RUN_PICKER_HORIZONTAL_INSET * 2),
-    singleLine: true,
+  const ageY = statusY + 21;
+  const ageText = ctx.text(ctx.root, ageLabel, ageRight, ageY, {
+    ...ageStyle, width: ageBudget, singleLine: true,
   });
+  drawRunsBreadcrumb(ctx, snapshot, indexEntry, leftX + 14, top + RUNS_PROJECT_TITLE_TOP,
+    leftWidth - 40 - Math.max(statusWidth, Math.min(ageBudget, ctx.measureText(ageLabel, ageStyle))));
   ageText.anchor.set(1, 0);
   const startedExact = timestampTooltip(run.startedAt, snapshot.state.locale);
   if (startedExact && startedAge) {
@@ -533,28 +494,32 @@ export function drawRuns(
   // The four run metrics and the atoms-used lanes live in the RUN summary
   // card on the right pane; a single-pane viewport has no summary card, so
   // both keep a row here instead.
-  // The age under the status ends just below the selector. Leave one compact
-  // gutter after the selector instead of the old 32px empty band.
-  let filterTop = RUN_PICKER_CONTROL_TOP + RUN_PICKER_CONTROL_HEIGHT + 16;
+  let filterTop = RUN_PICKER_CONTROL_TOP + RUN_PICKER_CONTROL_HEIGHT + 10;
   const actionWidth = Math.min(RUN_ACTION_MAX_WIDTH, (leftWidth - 36) / 2);
   const activity = buildRunActivity(run);
   // ONE row of the run's actions: the way back to a project run's list, its
   // two readers, then the app preview — on every pane width, where the
   // preview used to hang under the summary card that a single pane lacks.
   const backProjectId = indexEntry?.projectId && indexEntry.projectName ? indexEntry.projectId : null;
+  const compact = width < UI_LAYOUT.runCompactBreakpoint;
+  const onTimeline = !snapshot.state.runActivityOpen && snapshot.state.resultRunId !== run.id;
+  const runFilters = coerceEventFilters(run.events, snapshot.state.runFilters);
+  const filterLabel = runFilterToggleLabel(runFilters, snapshot.t);
   const actions = [
     ...(backProjectId ? [{ id: `runs.project.back.${backProjectId}`, label: snapshot.t('runs.backToProject'), active: false }] : []),
     { id: 'activity.open', label: snapshot.t(snapshot.state.runActivityOpen ? 'activity.title' : 'activity.open', { count: activity.touched }),
       active: snapshot.state.runActivityOpen },
     { id: `result.open.${run.id}`, label: snapshot.t('result.title'), active: snapshot.state.resultRunId === run.id },
     ...previewActions(snapshot),
+    ...(!compact && onTimeline ? [{ id: 'run.compact.filters', label: filterLabel, active: snapshot.state.compactRunFiltersOpen }] : []),
   ];
   const slots = layoutRunActions(actions.map(action =>
     Math.ceil(ctx.measureText(action.label, { size: 11, weight: action.active ? '700' : '600' })) + 20 + BUTTON_ICON_SPACE),
   Math.max(0, leftWidth - 28));
   actions.forEach((action, index) => {
     const slot = slots[index]!;
-    ctx.button(ctx.root, action.id, 'button', action.label, leftX + 14 + slot.x, filterTop + slot.y,
+    const x = action.id === 'run.compact.filters' ? leftWidth - 14 - slot.width : 14 + slot.x;
+    ctx.button(ctx.root, action.id, 'button', action.label, leftX + x, filterTop + slot.y,
       slot.width, RUN_ACTION_HEIGHT, action.active, snapshot.onActivate);
   });
   filterTop += (slots.at(-1)?.y ?? 0) + RUN_ACTION_ROW_PITCH;
@@ -575,13 +540,12 @@ export function drawRuns(
     ctx.scrollMax.runs = 0;
     return;
   }
-  const compact = width < UI_LAYOUT.runCompactBreakpoint;
   if (compact && !snapshot.state.selectedEventId) {
     const toggleWidth = (leftWidth - 36) / 2;
     ctx.button(ctx.root, 'run.compact.summary', 'button', snapshot.t('runs.compact.summary'),
       leftX + 14, filterTop, toggleWidth, UI_LAYOUT.controlHeight,
       snapshot.state.compactRunSummaryOpen, snapshot.onActivate);
-    ctx.button(ctx.root, 'run.compact.filters', 'button', snapshot.t('runs.compact.filters'),
+    ctx.button(ctx.root, 'run.compact.filters', 'button', filterLabel,
       leftX + 22 + toggleWidth, filterTop, toggleWidth, UI_LAYOUT.controlHeight,
       snapshot.state.compactRunFiltersOpen, snapshot.onActivate);
     filterTop += UI_LAYOUT.controlHeight + 8;
@@ -623,52 +587,19 @@ export function drawRuns(
     }
   }
 
-  const showFilters = !compact || snapshot.state.compactRunFiltersOpen;
-  const filterY = filterTop;
-  const runFilters = coerceEventFilters(run.events, snapshot.state.runFilters);
-  const kinds = visibleEventKindFilters(run.events);
-  const rolesVisible = showFilters && (
-    runFilters.kind === 'all' ||
-    runFilters.kind === 'llm');
-  // LLM roles only: a Jev decision carries a role too, and `learn-skill` would
-  // otherwise become a chip that the role filter (LLM-only) cannot match.
-  const roleNames = rolesVisible
-    ? [...new Set(run.events.flatMap((event) =>
-        (event.kind === 'llm' || event.kind === 'llm-start') && event.role ? [event.role] : []))]
-    : [];
+  const showFilters = snapshot.state.compactRunFiltersOpen;
+  const choices = showFilters ? runFilterChoices(run.events, runFilters, snapshot.t) : null;
+  const rolesVisible = !!choices?.roles.length;
   const filterLayout = layoutRunFilterBlocks({
     measure: (label, size) => ctx.measureText(label, { size, weight: '700' }),
     originX: leftX + 14,
-    originY: filterY,
+    originY: filterTop,
     maxWidth: leftWidth - 28,
-    kinds: (showFilters ? kinds : []).map((kind) => ({
-      id: `run.filter.kind.${kind}`,
-      label:
-        kind === 'tool'
-          ? snapshot.t('filters.tools').toUpperCase()
-          : kind === 'context'
-            ? snapshot.t('filters.context').toUpperCase()
-            : kind === 'topology' || kind === 'acceptance'
-              ? snapshot.t(`depth.${kind}`).toUpperCase()
-            : kind === 'jev'
-              ? snapshot.t('filters.jev').toUpperCase()
-            : kind.toUpperCase(),
-    })),
-    roles: roleNames.length
-      ? ['all', ...roleNames].map((role) => ({
-          id: `run.filter.role.${role}`,
-          label: role === 'all' ? snapshot.t('filters.allRoles').toUpperCase() : eventRoleLabel(role, snapshot.t).toUpperCase(),
-        }))
-      : null,
-    // PROPOSAL (2026-10-15): one `<ALL|LLM|JEV|…>` strip per row instead of
-    // spaced pills — the row keeps its chips and colours in a third less width.
+    kinds: choices?.kinds ?? [],
+    roles: choices?.roles ?? null,
     segmented: true,
   });
-  if (showFilters) ctx.filterBlockFrame(controlsParent, filterLayout.kinds);
-  if (filterLayout.roles) ctx.filterBlockFrame(controlsParent, filterLayout.roles);
-  // Both chip rows share ONE render group: an active chip pulses every frame,
-  // and that must not re-upload the timeline behind it (`animatedLayer`).
-  // The frames stay in root, drawn first, so they remain behind the chips.
+  // Chip interactions share a render group independently of the timeline.
   const filterChips = ctx.animatedLayer(controlsParent, 'run-filter-chips');
   for (const chip of filterLayout.kinds.chips) {
     ctx.filterButton(
@@ -714,13 +645,15 @@ export function drawRuns(
   const roleWasVisible = [...ctx.previousFilterBounds.keys()].some((id) =>
     id.startsWith('run.filter.role.')
   );
-  const exitingRoleFilters = !rolesVisible
+  const exitingRoleFilters = showFilters && !rolesVisible
     ? [...ctx.previousFilterBounds.values()].filter((target) =>
         target.id.startsWith('run.filter.role.')
       )
     : [];
   const enterDistance = Math.max(0, controlsBottom - controlsBottomWithoutRoles);
-  if (rolesVisible) {
+  if (!showFilters) {
+    ctx.roleRowTransition = null;
+  } else if (rolesVisible) {
     if (ctx.roleRowTransition?.phase === 'exit') ctx.roleRowTransition = null;
     if (enterDistance > 0 && !roleWasVisible && ctx.roleRowTransition?.phase !== 'enter') {
       ctx.roleRowTransition = {
@@ -760,56 +693,12 @@ export function drawRuns(
       roleRowTransition.startedAt
     );
   }
-  const branchOverview = buildTimelineLayout(run.events, {
-    ...runFilters,
-    branchId: 'all',
-  });
-  const overviewById = new Map(
-    branchOverview.branches.map((branch) => [branch.id, branch])
-  );
-  const branchIds = branchOverview.branches.map((branch) => branch.id);
-  const shownBranchIds = branchIds.slice(0, 6);
-  if (
-    runFilters.branchId !== 'all' &&
-    !shownBranchIds.includes(runFilters.branchId)
-  ) {
-    shownBranchIds.push(runFilters.branchId);
-  }
-  if (showFilters && branchIds.length > 1) {
-    const branchBlock = layoutFilterChipBlock(
-      leftX + 14,
-      controlsBottom,
-      leftWidth - 28,
-      ['all', ...shownBranchIds].map((branchId) => {
-        const branch = overviewById.get(branchId);
-        return {
-          id: `run.filter.branch.${branchId}`,
-          label:
-            branchId === 'all'
-              ? snapshot.t('timeline.allBranches').toUpperCase()
-              : branch
-                // The dense 8px face shows a title far longer than the
-                // 28-character cut the 12px face needed.
-                ? timelineBranchLabel(branch, snapshot.t, BRANCH_CHIP_TITLE_LENGTH).toUpperCase()
-                : `⑂ ${branchId.slice(0, 6)}`,
-        };
-      }),
-      {
-        // Branch labels are the longest chip copy in the client; the dense
-        // segmented strip keeps a six-branch run's filter row from eating the
-        // timeline while showing what each branch does.
-        size: 'compact',
-        segmented: true,
-        buttonHeight: FILTER_BUTTON_HEIGHT_DENSE,
-        // Measured through the style the chips draw with — the bold (active)
-        // weight, so selecting a chip never outgrows its measured box.
-        measure: (label) =>
-          ctx.measureText(label, {
-            size: FILTER_BUTTON_LABEL_SIZE_DENSE, weight: '600', exactSize: true,
-          }),
-      }
-    );
-    ctx.filterBlockFrame(lowerControlsLayer, branchBlock);
+  if (choices?.branches.length) {
+    const branchBlock = layoutFilterChipBlock(leftX + 14, controlsBottom, leftWidth - 28, choices.branches, {
+      segmented: true,
+      buttonHeight: FILTER_BUTTON_HEIGHT,
+      measure: label => ctx.measureText(label, { size: FILTER_BUTTON_LABEL_SIZE, weight: '700' }),
+    });
     const branchChips = ctx.animatedLayer(lowerControlsLayer, 'run-branch-chips');
     for (const chip of branchBlock.chips) {
       ctx.filterButton(
@@ -823,16 +712,15 @@ export function drawRuns(
         runFilters.branchId === chip.id.slice('run.filter.branch.'.length),
         snapshot.onActivate,
         undefined,
-        FILTER_BUTTON_LABEL_SIZE_DENSE,
-        { joint: chip.joint, segmented: true, exactSize: true }
+        FILTER_BUTTON_LABEL_SIZE,
+        { joint: chip.joint, segmented: true }
       );
     }
     controlsBottom = branchBlock.y + branchBlock.height + FILTER_BLOCK_GAP;
   }
 
-
   if (showFilters && runFilters.branchId !== 'all') {
-    const selectedBranch = overviewById.get(runFilters.branchId);
+    const selectedBranch = choices?.selected;
     const heading = selectedBranch
       ? timelineBranchHeading(selectedBranch, snapshot.t)
       : {

@@ -3860,38 +3860,33 @@ export class GpuRenderer {
       // At rest the border carries a THIRD of the family colour. Enough that
       // five chips read as five categories at a glance; not so much that a
       // row of unselected filters looks like a row of alerts.
-      color: active ? accent : mixColor(0x30405d, accent, 0.34),
+      color: active ? accent : segment ? GPU_COLORS.border : mixColor(0x30405d, accent, 0.34),
       width: active ? 1.8 : 1,
       alpha: active ? 1 : 0.85,
     });
     container.addChild(base);
     const insetShadow = this.addInsetShadow(container, width, height, 8);
 
-    const inner = new Graphics();
-    if (segment) {
-      segmentPath(inner, 3, 3, width - 6, height - 6, 5, roundLeft, roundRight);
-    } else {
+    // Segmented filters share a quiet outline. The brighter face and heavier
+    // label identify the selection even when adjacent options have similar hues.
+    const scanline = segment ? null : new Graphics();
+    if (scanline) {
+      const inner = new Graphics();
       inner.roundRect(3, 3, width - 6, height - 6, 6);
-    }
-    inner.stroke({ color: active ? 0xd9e8ff : 0x6f86ad, width: 0.7, alpha: active ? 0.35 : 0.12 });
-    container.addChild(inner);
+      inner.stroke({ color: active ? 0xd9e8ff : 0x6f86ad, width: 0.7, alpha: active ? 0.35 : 0.12 });
+      container.addChild(inner);
+      scanline.rect(0, 3, 2, height - 6).fill({ color: 0xffffff, alpha: 0.7 });
+      scanline.alpha = active ? 0.15 : 0.035;
+      container.addChild(scanline);
 
-    const scanline = new Graphics();
-    scanline.rect(0, 3, 2, height - 6).fill({ color: 0xffffff, alpha: 0.7 });
-    scanline.alpha = active ? 0.15 : 0.035;
-    container.addChild(scanline);
-
-    // The two corner ticks belong to the strip's outer corners: a middle
-    // segment draws none, so the row reads as ONE control with many faces.
-    const corner = new Graphics();
-    if (roundLeft) corner.moveTo(4, 9).lineTo(4, 4).lineTo(9, 4);
-    if (roundRight) {
+      const corner = new Graphics();
+      corner.moveTo(4, 9).lineTo(4, 4).lineTo(9, 4);
       corner.moveTo(width - 9, height - 4).lineTo(width - 4, height - 4).lineTo(width - 4, height - 9);
+      corner.stroke({ color: accent, width: 1.2, alpha: active ? 0.9 : 0.45 });
+      container.addChild(corner);
     }
-    corner.stroke({ color: accent, width: 1.2, alpha: active ? 0.9 : 0.45 });
-    container.addChild(corner);
 
-    const sparkles = Array.from({ length: 4 }, (_, index) => {
+    const sparkles = Array.from({ length: segment ? 0 : 4 }, (_, index) => {
       const sparkle = new Graphics();
       sparkle.circle(0, 0, index % 2 === 0 ? 1.4 : 1).fill({
         color: index % 2 === 0 ? accent : 0xffffff,
@@ -3933,7 +3928,7 @@ export class GpuRenderer {
     // The idle label carries a little of the family colour too, so a chip is
     // identifiable without being selected and without being loud.
     const idleTint = multiplyTint(GPU_COLORS.text, readableTextColor(
-      mixColor(BUTTON_LABEL_IDLE, accent, 0.42), this.snapshot?.state.appearanceTheme ?? 'nocturne'));
+      segment ? BUTTON_LABEL_IDLE : mixColor(BUTTON_LABEL_IDLE, accent, 0.42), this.snapshot?.state.appearanceTheme ?? 'nocturne'));
     let currentLabelTint = active ? NO_TINT : idleTint;
     labelText.tint = currentLabelTint;
     container.alpha = wasVisible || prefersReducedMotion() ? 1 : 0;
@@ -3961,8 +3956,10 @@ export class GpuRenderer {
         : hovered
           ? 0.12 + pulse * 0.16
           : 0;
-      scanline.x = 4 + (Math.max(0, elapsed) * (hovered ? 0.12 : 0.045)) % Math.max(8, width - 10);
-      scanline.alpha = active ? 0.12 + pulse * 0.12 : hovered ? 0.08 + pulse * 0.1 : 0.025;
+      if (scanline) {
+        scanline.x = 4 + (Math.max(0, elapsed) * (hovered ? 0.12 : 0.045)) % Math.max(8, width - 10);
+        scanline.alpha = active ? 0.12 + pulse * 0.12 : hovered ? 0.08 + pulse * 0.1 : 0.025;
+      }
       base.tint = pressed ? 0xb8d7ff : hovered ? 0xd6e7ff : 0xffffff;
       // A pressed or selected surface is RECESSED: its drop shadow gives way
       // to the one it casts into itself. The inner shadow stays registered

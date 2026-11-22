@@ -2107,6 +2107,7 @@ try {
             .some((entry) => entry.id.startsWith('run.filter.role.')),
         }));
 
+      await clickTarget('run.compact.filters');
       const initial = await probe();
       // Hide the role row (kind: tool), let the exit settle and re-render.
       await clickTarget('run.filter.kind.tool');

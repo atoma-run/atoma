@@ -5,10 +5,12 @@ import {
   fmtTokenCount,
   fmtMs,
   isRunLive,
+  visibleEventKindFilters,
+  type EventFilters,
   toolArgSummary,
   tryParseJson,
 } from '../../client/run-utils.js';
-import { timelineBranchHeading, type TimelineBranch, type TimelineItem } from '../../client/timeline-layout.js';
+import { buildTimelineLayout, timelineBranchHeading, type TimelineBranch, type TimelineItem } from '../../client/timeline-layout.js';
 import type { VizEvent, VizRun } from '../../client/types.js';
 import {
   skillEventTitle,
@@ -103,6 +105,43 @@ export function timelineBranchLabel(
   return `${heading.eyebrow} · ${truncate(heading.title, titleLength)}`;
 }
 
+
+/** The canvas and keyboard controls share option order, labels and selection. */
+export function runFilterChoices(events: VizEvent[], filters: EventFilters, t: GpuTranslate) {
+  const kinds = visibleEventKindFilters(events).map(value => {
+    const key = value === 'all' ? 'runs.filters.allEvents'
+      : value === 'topology' || value === 'acceptance' ? `depth.${value}`
+      : `filters.${value === 'tool' ? 'tools' : value === 'skill' ? 'skills' : value}`;
+    return { id: `run.filter.kind.${value}`, label: t(key), value };
+  });
+  const roleNames = filters.kind === 'all' || filters.kind === 'llm'
+    ? [...new Set(events.flatMap(event =>
+      (event.kind === 'llm' || event.kind === 'llm-start') && event.role ? [event.role] : []))]
+    : [];
+  const roles = roleNames.length ? ['all', ...roleNames].map(value => ({
+    id: `run.filter.role.${value}`, value, label: value === 'all' ? t('filters.allRoles') : eventRoleLabel(value, t),
+  })) : [];
+  const overview = buildTimelineLayout(events, { ...filters, branchId: 'all' }).branches;
+  const selected = overview.find(branch => branch.id === filters.branchId);
+  const shown = overview.slice(0, 6);
+  if (selected && !shown.includes(selected)) shown.push(selected);
+  const branches = overview.length > 1 || filters.branchId !== 'all' ? [
+    { id: 'run.filter.branch.all', value: 'all', label: t('timeline.allBranches') },
+    ...shown.map(branch => ({
+      id: `run.filter.branch.${branch.id}`, value: branch.id, label: timelineBranchLabel(branch, t),
+    })),
+  ] : [];
+  if (!selected && filters.branchId !== 'all') {
+    branches.push({ id: `run.filter.branch.${filters.branchId}`, value: filters.branchId,
+      label: t('filters.branch', { id: filters.branchId.slice(0, 8) }) });
+  }
+  return { kinds, roles, branches, selected };
+}
+
+export function runFilterToggleLabel(filters: EventFilters, t: GpuTranslate) {
+  const count = Object.values(filters).filter(value => value !== 'all').length;
+  return count ? t('runs.filters.active', { count }) : t('runs.compact.filters');
+}
 
 /**
  * A Jev decision's badge, read from the `outcome` `src/core/jev.ts` records

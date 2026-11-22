@@ -507,10 +507,22 @@ html.atoma-cursor-active * {
   --gpu-overlay-left: calc(var(--gpu-sidebar) + 24px);
   top: 104px;
   left: calc(var(--gpu-sidebar) + 24px);
-  width: calc(var(--gpu-runs-left) - 156px);
+  width: calc(var(--gpu-runs-left) - 28px);
   min-width: 0;
-  height: 32px;
-  padding: 6px 12px;
+  height: 40px;
+  padding: 4px 36px 4px 12px;
+  font-size: clamp(16px, 1.4vw, 20px);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  border-color: rgba(141, 169, 207, .36);
+  box-shadow: none;
+  background-image: var(--gpu-chevron-image);
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: var(--gpu-chevron-size);
+}
+.gpu-run-input[data-wide-pane] {
+  --gpu-runs-left: calc(var(--gpu-content) - 20px);
 }
 
 .gpu-view-search {

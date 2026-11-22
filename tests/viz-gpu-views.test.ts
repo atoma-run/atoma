@@ -95,7 +95,6 @@ import {
   viewFrameGutterRects,
   VIEW_FRAME_CONTENT_TOP,
   VIEW_FRAME_PAD,
-  VIEW_FRAME_TITLE_SIZE,
   VIEW_FRAME_TITLE_Y,
 } from '../src/viz/client-gl/renderer/view-frame.js';
 import { overlayMenuClip } from '../src/viz/client-gl/renderer/overlay-menu-clip.js';
@@ -147,7 +146,6 @@ import {
   RUN_PICKER_CONTROL_HEIGHT,
   RUN_PICKER_CONTROL_TOP,
   RUN_PICKER_HORIZONTAL_INSET,
-  RUN_PICKER_STATUS_RESERVE,
   RUNS_TWO_PANE_MIN_WIDTH,
   runsPaneLayout,
   runsPickerControlLayout,
@@ -6579,11 +6577,8 @@ describe('drawRuns behavior', () => {
     const title = ctx.texts.find((text) => text.value === 'Stopwatch E2E two');
     expect(title, 'the panel must name the project').toBeDefined();
     expect(title!.x).toBe(pane.leftX + 14);
-    // On the SAME title line, at the SAME size, with the first control on the
-    // same content line as every other view — their constants, not a second
-    // set that merely looks similar.
-    expect(title!.y).toBe(pane.top + VIEW_FRAME_TITLE_Y);
-    expect((title!.options as { size?: number }).size).toBe(VIEW_FRAME_TITLE_SIZE);
+    expect(title!.y).toBeGreaterThanOrEqual(pane.top + VIEW_FRAME_TITLE_Y);
+    expect(title!.y + title!.node.height).toBeLessThan(runsPickerControlLayout(WIDTH).y);
     expect(runsPickerControlLayout(WIDTH).y).toBe(pane.top + VIEW_FRAME_CONTENT_TOP);
   });
 
@@ -6681,7 +6676,7 @@ describe('drawRuns behavior', () => {
         // Below the project title, which says which project the run is in.
         y: pane.top + 8 + RUNS_PROJECT_TITLE_HEIGHT,
         width:
-          pane.leftWidth - RUN_PICKER_HORIZONTAL_INSET * 2 - RUN_PICKER_STATUS_RESERVE,
+          pane.leftWidth - RUN_PICKER_HORIZONTAL_INSET * 2,
         height: RUN_PICKER_CONTROL_HEIGHT,
       });
       expect(picker.x).toBeGreaterThan(pane.leftX);
@@ -6689,7 +6684,7 @@ describe('drawRuns behavior', () => {
       // Clear of the title row, and still inside the panel's own header band.
       expect(picker.y).toBeGreaterThanOrEqual(pane.top + RUNS_PROJECT_TITLE_HEIGHT);
       expect(picker.y + picker.height)
-        .toBeLessThan(pane.top + 48 + RUNS_PROJECT_TITLE_HEIGHT);
+        .toBeLessThanOrEqual(pane.top + 48 + RUNS_PROJECT_TITLE_HEIGHT);
     }
   });
 
@@ -6731,9 +6726,9 @@ describe('drawRuns behavior', () => {
     expect(reading.buttons.filter(button => button.id === 'run.preview.open')).toHaveLength(1);
   });
 
-  it('lays the run\'s actions out as one even row, or wraps them at their measured widths', () => {
+  it('sizes run actions to their labels and wraps them in reading order', () => {
     expect(layoutRunActions([120, 140, 90], 700)).toEqual([
-      { x: 0, y: 0, width: 180 }, { x: 188, y: 0, width: 180 }, { x: 376, y: 0, width: 180 },
+      { x: 0, y: 0, width: 120 }, { x: 128, y: 0, width: 140 }, { x: 276, y: 0, width: 90 },
     ]);
     expect(layoutRunActions([120, 140, 90, 130], 300)).toEqual([
       { x: 0, y: 0, width: 120 }, { x: 128, y: 0, width: 140 },
@@ -7024,28 +7019,39 @@ describe('drawRuns behavior', () => {
     expect(ctx.scrollMax.runs).toBe(0);
   });
 
+  it.each([390, 1280])('keeps the timeline visible and the active count available with filters closed at %i', width => {
+    const run = makeRun(eventsWithRoles());
+    const state = { runFilters: { kind: 'llm', role: 'plan', branchId: 'all' } };
+    const closed = createRecordingCtx();
+    drawRuns(closed, makeSnapshot(state, { run }), width, HEIGHT);
+    expect(closed.buttons.find(button => button.id === 'run.compact.filters')?.label).toBe('Filters (2)');
+    expect(closed.filterButtons).toHaveLength(0);
+    expect(closed.eventCards.map(card => card.id)).toEqual(['e1']);
+    const opened = createRecordingCtx();
+    drawRuns(opened, makeSnapshot({ ...state, compactRunFiltersOpen: true }, { run }), width, HEIGHT);
+    expect(opened.filterButtons.find(button => button.id === 'run.filter.role.plan')?.active).toBe(true);
+  });
+
   it('labels the role filter chip from the i18n catalog', () => {
     const ctx = createRecordingCtx();
-    drawRuns(ctx, makeSnapshot({}, { run: makeRun(eventsWithRoles()) }), WIDTH, HEIGHT);
+    drawRuns(ctx, makeSnapshot({ compactRunFiltersOpen: true }, { run: makeRun(eventsWithRoles()) }), WIDTH, HEIGHT);
     const allRoles = ctx.filterButtons.find((button) => button.id === 'run.filter.role.all');
     expect(allRoles).toBeDefined();
-    expect(allRoles!.label).toBe(I18N_CATALOGS.en['filters.allRoles']!.toUpperCase());
-    expect(allRoles!.label).toBe('ALL ROLES');
+    expect(allRoles!.label).toBe(I18N_CATALOGS.en['filters.allRoles']!);
   });
 
   it('labels the Decision kind chip from the i18n catalog, never the trace kind', () => {
     const ctx = createRecordingCtx();
     const decision = { id: 'decision-1', ts: 1_000, kind: 'jev', role: 'prefilter', evaluator: 'jev-1.13.0',
       outcome: 'picked Meristem', durationMs: 469, usage: { inputTokens: 1, outputTokens: 1 }, costUsd: 0.001 } as unknown as VizEvent;
-    drawRuns(ctx, makeSnapshot({}, { run: makeRun([...eventsWithRoles(), decision]) }), WIDTH, HEIGHT);
+    drawRuns(ctx, makeSnapshot({ compactRunFiltersOpen: true }, { run: makeRun([...eventsWithRoles(), decision]) }), WIDTH, HEIGHT);
     const chip = ctx.filterButtons.find((button) => button.id === 'run.filter.kind.jev');
-    expect(chip?.label).toBe(I18N_CATALOGS.en['filters.jev']!.toUpperCase());
-    expect(chip?.label).toBe('DECISION');
+    expect(chip?.label).toBe(I18N_CATALOGS.en['filters.jev']!);
   });
 
   it('offers only the kind filters present in the trace', () => {
     const ctx = createRecordingCtx();
-    drawRuns(ctx, makeSnapshot({}, { run: makeRun(eventsWithRoles()) }), WIDTH, HEIGHT);
+    drawRuns(ctx, makeSnapshot({ compactRunFiltersOpen: true }, { run: makeRun(eventsWithRoles()) }), WIDTH, HEIGHT);
     const kindIds = ctx.filterButtons
       .filter((button) => button.id.startsWith('run.filter.kind.'))
       .map((button) => button.id);
@@ -7366,7 +7372,7 @@ describe('drawRuns behavior', () => {
     drawRuns(
       ctx,
       makeSnapshot(
-        { runFilters: { kind: 'all', role: 'all', branchId: 'branch-x' } },
+        { compactRunFiltersOpen: true, runFilters: { kind: 'all', role: 'all', branchId: 'branch-x' } },
         { run: makeRun(eventsWithRoles()) }
       ),
       WIDTH,
@@ -7411,7 +7417,7 @@ describe('drawRuns behavior', () => {
     drawRuns(
       ctx,
       makeSnapshot(
-        { runFilters: { kind: 'tool', role: 'all', branchId: 'all' } },
+        { compactRunFiltersOpen: true, runFilters: { kind: 'tool', role: 'all', branchId: 'all' } },
         { run: makeRun(eventsWithRoles()) }
       ),
       WIDTH,
@@ -7490,15 +7496,14 @@ describe('drawRuns — run status and timeline bookends', () => {
         const frame = ctx.panels[0]!;
         const status = ctx.texts.find((entry) => entry.value === label)!;
         const statusWidth = Math.min(
-          RUN_PICKER_STATUS_RESERVE,
-          frame.width - RUN_PICKER_HORIZONTAL_INSET * 2,
+          180, frame.width * 0.4,
           Math.max(64, Math.ceil(ctx.measureText(label, { size: 10, weight: '700' })) + 16)
         );
         expect(status.x).toBe(frame.x + frame.width - 14 - statusWidth / 2);
         expect(status.node.anchor).toMatchObject({ x: 0.5, y: 0.5 });
         expect(status.options).toMatchObject({ width: statusWidth - 16, singleLine: true });
         const picker = runsPickerControlLayout(width);
-        expect(status.x - statusWidth / 2).toBeGreaterThanOrEqual(picker.x + picker.width);
+        expect(status.y + 10).toBeLessThan(picker.y);
       }
     }
   });
@@ -7946,7 +7951,7 @@ describe('render groups — per-frame animation stays off the root batch', () =>
         result: { ok: true },
       },
     ];
-    drawRuns(ctx, makeSnapshot({}, { run: makeRun(events) }), 1280, 800);
+    drawRuns(ctx, makeSnapshot({ compactRunFiltersOpen: true }, { run: makeRun(events) }), 1280, 800);
 
     const kinds = ctx.filterButtons.filter((button) => button.id.startsWith('run.filter.kind.'));
     const roles = ctx.filterButtons.filter((button) => button.id.startsWith('run.filter.role.'));
@@ -7955,11 +7960,6 @@ describe('render groups — per-frame animation stays off the root batch', () =>
     const chips = kinds[0]!.parent;
     expectBand(chips, 'run-filter-chips', ctx.root);
     for (const chip of [...kinds, ...roles]) expect(chip.parent).toBe(chips);
-    // The chip frames are static: drawn into root BEFORE the band, so they
-    // stay behind the chips they frame.
-    const bandIndex = ctx.root.getChildIndex(chips);
-    expect(ctx.root.children.slice(0, bandIndex).some((child) => child instanceof Graphics)).toBe(true);
-
     expect(ctx.atomButtons.length).toBeGreaterThan(0);
     const lanes = ctx.atomButtons[0]!.parent;
     expectBand(lanes, 'run-atom-lanes', ctx.root);

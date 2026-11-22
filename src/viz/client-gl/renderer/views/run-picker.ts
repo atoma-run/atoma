@@ -18,9 +18,10 @@ export function drawRunPicker(ctx: RendererCtx, snapshot: GpuRenderSnapshot, wid
   const contentLeft = sidebarWidthForViewport(width);
   const contentWidth = Math.max(0, width - contentLeft);
   const picker = runsPickerControlLayout(contentWidth);
-  const pane = runsPaneLayout(contentWidth);
+  const wide = snapshot.state.runActivityOpen || (!!snapshot.data.run && snapshot.state.resultRunId === snapshot.data.run.id);
+  const paneWidth = wide ? contentWidth - GPU_LAYOUT.gap * 2 : runsPaneLayout(contentWidth).leftWidth;
   const x = contentLeft + picker.x;
-  const popupWidth = Math.max(0, pane.leftWidth - 28);
+  const popupWidth = Math.max(0, paneWidth - 28);
   const popupY = picker.y + picker.height + 4;
   const rowHeight = RUN_PICKER_ROW_HEIGHT;
   const headerHeight = RUN_PICKER_HEADER_HEIGHT;

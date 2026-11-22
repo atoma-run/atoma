@@ -25,6 +25,7 @@ import {
 import type { RunIndexEntry, VizGitHubInstallation, VizProject, VizRun, VizSentinelSnapshot } from '../client/types.js';
 import { AccessibleRunActivity } from './AccessibleRunActivity.js';
 import { buildTimelineLayout } from '../client/timeline-layout.js';
+import { runFilterChoices, runFilterToggleLabel } from './renderer/copy.js';
 import { coerceEventFilters } from '../client/run-utils.js';
 import { explainEvent } from '../client/event-explanation.js';
 import { TIMELINE_JUMP_PREFIX } from './renderer/timeline-minimap.js';
@@ -49,19 +50,39 @@ function TimelineNavigator({ run, t, onActivate }: {
   const filters = useGpuStore(state => state.runFilters);
   const activityOpen = useGpuStore(state => state.runActivityOpen);
   const resultRunId = useGpuStore(state => state.resultRunId);
-  const timeline = useMemo(() => buildTimelineLayout(run.events,
-    coerceEventFilters(run.events, filters), { newestFirst: true }), [run.events, filters]);
+  const filtersOpen = useGpuStore(state => state.compactRunFiltersOpen);
+  const activeFilters = useMemo(() => coerceEventFilters(run.events, filters), [run.events, filters]);
+  const timeline = useMemo(() => buildTimelineLayout(run.events, activeFilters, { newestFirst: true }), [run.events, activeFilters]);
+  const choices = useMemo(() => filtersOpen && !activityOpen && !resultRunId
+    ? runFilterChoices(run.events, activeFilters, t) : null, [filtersOpen, activityOpen, resultRunId, run.events, activeFilters, t]);
   const [step, setStep] = useState(0);
   if (activityOpen || resultRunId) return null;
-  return <label>{t('timeline.minimap')}
-    <input type="range" min={0} max={timeline.items.length + 1} step={1}
-      value={Math.min(step, timeline.items.length + 1)}
-      onChange={event => {
-        const row = Number(event.target.value);
-        setStep(row);
-        onActivate(`${TIMELINE_JUMP_PREFIX}${row}`);
-      }} />
-  </label>;
+  return <>
+    <button type="button" aria-expanded={filtersOpen} onClick={() => onActivate('run.compact.filters')}>
+      {runFilterToggleLabel(activeFilters, t)}
+    </button>
+    {choices && ([
+      ['runs.filters.kind', activeFilters.kind, choices.kinds],
+      ['runs.filters.role', activeFilters.role, choices.roles],
+      ['eventAction.branch', activeFilters.branchId, choices.branches],
+    ] as const).map(([key, selected, options]) => options.length > 0 && (
+      <label key={key}>{t(key)}
+        <select value={selected} onChange={event => {
+          const option = options.find(choice => choice.value === event.target.value);
+          if (option) onActivate(option.id);
+        }}>{options.map(option => <option key={option.id} value={option.value}>{option.label}</option>)}</select>
+      </label>
+    ))}
+    <label>{t('timeline.minimap')}
+      <input type="range" min={0} max={timeline.items.length + 1} step={1}
+        value={Math.min(step, timeline.items.length + 1)}
+        onChange={event => {
+          const row = Number(event.target.value);
+          setStep(row);
+          onActivate(`${TIMELINE_JUMP_PREFIX}${row}`);
+        }} />
+    </label>
+  </>;
 }
 
 function runPickerInputViewportHeight(input: HTMLInputElement): number {
@@ -320,6 +341,7 @@ export function DomBridge({
   onActivate?: (id: string) => void;
 }) {
   const view = useGpuStore((state) => state.view);
+  const runActivityOpen = useGpuStore(state => state.runActivityOpen);
   const compactDetailView = useGpuStore((state) => state.compactDetailView);
   const journalFamily = useGpuStore((state) => state.journalFamily);
   const journalSeverity = useGpuStore((state) => state.journalSeverity);
@@ -422,7 +444,7 @@ export function DomBridge({
       <span role="status">{t(copiedRequest.ok ? 'projects.mcpCopied' : 'projects.mcpCopyFailed')}</span>
     ) : null}
   </>;
-  const runValue = focusedInput === 'run' ? search.run : selectedRun?.title ?? selectedRun?.label ?? '';
+  const runValue = focusedInput === 'run' ? search.run : selectedRun?.title ?? selectedRun?.goal ?? selectedRun?.label ?? run?.label ?? '';
   const pickerRuns = runsInPickerScope(runs, selectedRunId, selectedProjectId);
   const runPicker = buildRunPicker(pickerRuns, search.run);
   // The account menu is Pixi chrome while text-entry controls are real DOM
@@ -694,6 +716,8 @@ export function DomBridge({
         <input
           className={`gpu-dom-input gpu-run-input${overlaysInert ? ' gpu-overlays-veiled' : ''}`}
           aria-label={t('runs.search', { count: pickerRuns.length })}
+          data-wide-pane={runActivityOpen || (!!run && resultRunId === run.id) || undefined}
+          title={focusedInput === 'run' ? undefined : runValue}
           value={runValue}
           placeholder={t('runs.search', { count: pickerRuns.length })}
           inert={overlaysInert}

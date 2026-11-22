@@ -184,6 +184,30 @@ describe('full-GL minimal DOM bridge', () => {
     expect(useGpuStore.getState().selectedEventId).toBe('edit');
   });
 
+  it('exposes the filter disclosure and its selected values to keyboard users', async () => {
+    const user = userEvent.setup();
+    const onActivate = vi.fn();
+    useGpuStore.setState({ compactRunFiltersOpen: false, resultRunId: null,
+      runFilters: { kind: 'llm', role: 'plan', branchId: 'all' } });
+    render(createElement(DomBridge, {
+      runs, releaseVersion: '9.8.7', onSelectRun: vi.fn(), onActivate,
+      t: (key: string, vars?: Record<string, unknown>) => translate('en', key, vars),
+      run: { ...runs[0]!, events: [{ id: 'plan', kind: 'llm', role: 'plan', ts: 0 }] },
+    }));
+    const toggle = screen.getByRole('button', { name: 'Filters (2)' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('combobox', { name: 'Event type' })).not.toBeInTheDocument();
+    toggle.focus();
+    await user.keyboard('{Enter}');
+    expect(onActivate).toHaveBeenCalledWith('run.compact.filters');
+    act(() => useGpuStore.setState({ compactRunFiltersOpen: true }));
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('combobox', { name: 'Role' })).toHaveValue('plan');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Event type' }), 'tool');
+    expect(onActivate).toHaveBeenCalledWith('run.filter.kind.tool');
+    act(() => useGpuStore.setState({ compactRunFiltersOpen: false }));
+  });
+
   it('navigates filtered timeline steps through the same activation as the canvas', () => {
     const onActivate = vi.fn();
     useGpuStore.setState({ runFilters: { kind: 'tool', role: 'all', branchId: 'all' }, resultRunId: null });

@@ -1,6 +1,10 @@
 {
   "layout.backList": "Back to list",
   "runs.compact.summary": "Summary",
+  "runs.filters.allEvents": "All events",
+  "runs.filters.active": "Filters ({{count}})",
+  "runs.filters.kind": "Event type",
+  "runs.filters.role": "Role",
   "runs.compact.filters": "Filters",
   "detail.readable.topology.deep": "The request is handled through smaller, delegated tasks.",
   "detail.readable.topology.short": "The request uses a shorter execution path.",

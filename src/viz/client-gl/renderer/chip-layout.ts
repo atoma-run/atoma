@@ -45,14 +45,6 @@ export const FILTER_BUTTON_HEIGHT = 27;
 export const FILTER_BUTTON_HEIGHT_COMPACT = 26;
 export const FILTER_BUTTON_LABEL_SIZE = 11;
 export const FILTER_BUTTON_LABEL_SIZE_COMPACT = 8;
-/**
- * The dense face for segmented strips. `gpuTextSize` floors every label at
- * 12px, so the "8px compact" chips draw at the same size as the 11px kind
- * chips. A segmented branch strip asks for an EXACT 8px face (owner,
- * 2026-10-15, down from 9) so the row shows more of each branch title.
- */
-export const FILTER_BUTTON_LABEL_SIZE_DENSE = 8;
-export const FILTER_BUTTON_HEIGHT_DENSE = 18;
 export const ATOM_BUTTON_HEIGHT = 28;
 
 export function gpuLaneLabelWidth(label: string) {

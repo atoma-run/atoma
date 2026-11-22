@@ -2177,8 +2177,7 @@ try {
     }
     if (has('--branch-heading-probe')) {
       if (!authed || view !== 'Runs') throw new Error('--branch-heading-probe requires --auth --view Runs');
-      for (const [branch, expected] of [['p1', 'Write index.html and app.js'], ['c1', 'Execution of Phase 1']]) {
-        const id = `run.filter.branch.${branch}`;
+      for (const [id, expected] of [['run.compact.filters', null], ['run.filter.branch.p1', 'Write index.html and app.js'], ['run.filter.branch.c1', 'Execution of Phase 1']]) {
         await page.waitForFunction(targetId => globalThis.__ATOMA_GPU__?.hitTargets().some(entry => entry.id === targetId),
           { timeout: READY_TIMEOUT_MS }, id);
         const point = await page.evaluate(targetId => {
@@ -2187,6 +2186,7 @@ try {
           return handle.projectRendererPoint(target.x + target.width / 2, target.y + target.height / 2);
         }, id);
         await page.mouse.click(point.x, point.y);
+        if (!expected) continue;
         await page.waitForFunction(title => {
           const texts = [];
           const visit = node => {
@@ -2196,11 +2196,11 @@ try {
           visit(globalThis.__ATOMA_GPU__.app.stage);
           return texts.includes(title);
         }, { timeout: READY_TIMEOUT_MS }, expected);
-        if (branch === 'p1') await page.screenshot({ path: outPath.replace(/\.png$/, '-phase.png') });
+        if (id === 'run.filter.branch.p1') await page.screenshot({ path: outPath.replace(/\.png$/, '-phase.png') });
       }
       const label = await page.evaluate(() => globalThis.__ATOMA_GPU__.hitTargets()
         .find(entry => entry.id === 'run.filter.branch.c1').label);
-      if (label !== 'TASK 1.1 · EXECUTION OF PHASE 1') throw new Error(`Unexpected task chip: ${label}`);
+      if (label !== 'Task 1.1 · Execution of Phase 1') throw new Error(`Unexpected task chip: ${label}`);
       console.log('Branch headings: distinct phase and delegated execution selected through canvas controls');
     }
     if (has('--activate')) {
