@@ -13,3 +13,7 @@ export const COMPUTE_IMAGES = {
     "retrieval": "ghcr.io/atoma-run/atoma/compute-retrieval@sha256:f1dc50be268e667cf0703221553d49aece2e494d1043c1065352921b5f31ab74"
   }
 } as const;
+
+/** Populated only from verified image receipts after the server understands the
+ * capability. Older installed pins must never claim they can build a preview. */
+export const COMPUTE_VITE_PREVIEW_IMAGES: ReadonlyArray<{ workspace: string; preview: string }> = [];

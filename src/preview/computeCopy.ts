@@ -1,3 +1,4 @@
+import { hasVitePreviewSource } from './sourceBuild.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,7 @@ import { previewCopyLimits } from './runtime.js';
 export function copyComputePreview(input: unknown, source = '/source/current', destination = '/preview/current') {
   const command = computePreviewCommandSchema.parse(input);
   if (command.method !== 'start') throw new Error('Expected preview start');
+  if (command.build && (command.source !== 'delivered' || command.mode !== 'app')) throw new Error('Preview build source unavailable');
   if (command.source === 'delivered' && !command.artifactHash) throw new Error('Delivered preview requires a saved artifact identity');
   materializePreviewWorkspace({ sourceRoot: source, destinationRoot: destination, preserveExecutable: true,
     limits: previewCopyLimits(command.mode === 'terminal' ? 'terminal' : undefined, command.copyMaxBytes) });
@@ -21,6 +23,10 @@ export function copyComputePreview(input: unknown, source = '/source/current', d
     if (artifactManifestHash(observed) !== command.artifactHash) throw new Error('Preview copy differs from the saved delivery');
   }
   if (command.mode === 'terminal') return { kind: 'node' as const, entry: 'terminal' };
+  if (command.build) {
+    if (command.source !== 'delivered' || !hasVitePreviewSource(destination)) throw new Error('Preview build source unavailable');
+    return { kind: 'static' as const, entry: 'index.html' };
+  }
   // A delivered copy whose bytes matched the saved delivery above is described
   // by the host's descriptor, not re-classified here: the device's probe
   // manifest is not the host's (a Compute export carries only publishable

@@ -1,5 +1,6 @@
+import { hasVitePreviewSource } from './sourceBuild.js';
 import type { RemotePreviewRuntime } from './computeController.js';
-import type { PreviewErrorCode, PreviewInstance, PreviewSummary } from '../contracts/preview.js';
+import type { PreviewDescriptor, PreviewErrorCode, PreviewInstance, PreviewSummary } from '../contracts/preview.js';
 import type { ContainerLauncher } from '../contracts/launcher.js';
 import { mintPreviewClaim, PreviewClaimRegistry } from './claims.js';
 import type { PreviewConfig } from './config.js';
@@ -120,7 +121,30 @@ interface PreviewOpenInput {
 export class PreviewManager {
   private readonly starting = new Map<string, 'app' | 'terminal'>();
 
+  private readonly buildSources = new Map<string, boolean>();
+
   constructor(private readonly deps: PreviewManagerDeps) {}
+
+  /** Delivery facts stay immutable. A newer runtime can additionally build an
+   * existing source delivery. Cache bounded source eligibility per immutable delivered identity; polling
+   * does not repeatedly inspect the filesystem. */
+  private buildFor(orgId: string, projectId: string, runId: string, descriptor: PreviewDescriptor | null): 'vite' | undefined {
+    if (!descriptor || descriptor.projectId !== projectId || descriptor.kind === 'node' || descriptor.root ||
+      (descriptor.availability === 'unavailable' && descriptor.unavailableReason !== 'not-runnable' && descriptor.unavailableReason !== 'unsupported-deliverable') ||
+      !this.deps.remote?.owns(orgId, projectId, runId)) return undefined;
+    const key = this.key(orgId, runId);
+    if (this.buildSources.has(key)) return this.buildSources.get(key) ? 'vite' : undefined;
+    const supported = hasVitePreviewSource(this.deps.workspaceOf(orgId, projectId, runId));
+    if (this.buildSources.size >= 256) this.buildSources.delete(this.buildSources.keys().next().value!);
+    this.buildSources.set(key, supported);
+    return supported ? 'vite' : undefined;
+  }
+
+  private runnableDescriptor(orgId: string, projectId: string, runId: string): PreviewDescriptor | null {
+    const descriptor = this.deps.store.getDescriptor(orgId, runId);
+    return this.buildFor(orgId, projectId, runId, descriptor) && descriptor
+      ? { ...descriptor, availability: 'available', kind: 'static', entry: null, unavailableReason: null } : descriptor;
+  }
 
   private get now(): () => number {
     return this.deps.now ?? Date.now;
@@ -141,13 +165,15 @@ export class PreviewManager {
     projectRunId: string,
     options: { readonly runInFlight?: boolean } = {}
   ): PreviewSummary {
-    return readPreviewSummary(this.deps.store, {
+    const summary = readPreviewSummary(this.deps.store, {
       orgId,
       projectId,
       projectRunId,
       runInFlight: options.runInFlight,
       operatorAllowedHosts: this.deps.config.allowedHosts,
     });
+    const descriptor = this.runnableDescriptor(orgId, projectId, projectRunId);
+    return descriptor ? { ...summary, availability: descriptor.availability, kind: descriptor.kind, reason: descriptor.unavailableReason } : summary;
   }
 
   /**
@@ -196,7 +222,7 @@ export class PreviewManager {
 
   private async openDelivered(input: PreviewOpenInput): Promise<OpenedPreview> {
     const { store } = this.deps;
-    const descriptor = store.getDescriptor(input.orgId, input.projectRunId);
+    const descriptor = this.runnableDescriptor(input.orgId, input.projectId, input.projectRunId);
     const terminal = input.mode === 'terminal';
     if (!descriptor && !terminal) throw new PreviewUnavailableError('legacy-run');
     if (descriptor && descriptor.availability !== 'available' && !terminal) {
@@ -646,12 +672,13 @@ export class PreviewManager {
   }
 
   private async startRemote(input: PreviewOpenInput, generation: number, source: 'delivered' | 'in-flight', allowedHosts: readonly string[]): Promise<void> {
-    const descriptor = source === 'delivered' ? this.deps.store.getDescriptor(input.orgId, input.projectRunId) : null;
+    const descriptor = source === 'delivered' ? this.runnableDescriptor(input.orgId, input.projectId, input.projectRunId) : null;
     // The strict executor contract carries classification, never a storage row.
     const classification = descriptor ? { availability: descriptor.availability, kind: descriptor.kind,
       entry: descriptor.entry, unavailableReason: descriptor.unavailableReason } : undefined;
     const running = await this.deps.remote!.start({ orgId: input.orgId, projectId: input.projectId, runId: input.projectRunId,
       ...(classification ? { classification } : {}),
+      ...(input.mode !== 'terminal' && this.buildFor(input.orgId, input.projectId, input.projectRunId, descriptor) ? { build: 'vite' as const } : {}),
       generation, source, mode: input.mode ?? 'app', allowedHosts, copyMaxBytes: this.deps.config.copyMaxBytes,
       attribution: this.deps.attribution?.(input.orgId) ?? true, hardMs: this.deps.config.hardMs });
     const host = `${previewGenerationHost(input.orgId, input.projectRunId, generation)}.${this.deps.config.domain}`;

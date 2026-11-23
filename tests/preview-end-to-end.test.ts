@@ -698,3 +698,31 @@ describe('previewing a delivered artifact, end to end', () => {
     expect(previews.countLiveInstances(orgId).org).toBe(2);
   });
 });
+
+it('offers a new isolated build capability for a historical Compute source delivery without rewriting its descriptor', async () => {
+  // DVF f3d830e5: source-only delivery, historical HTTP evidence, no dist.
+  db.prepare('DELETE FROM project_run_preview_descriptors WHERE project_run_id = ?').run(projectRunId);
+  writeFileSync(join(deliveredWorkspace, 'package.json'), '{"devDependencies":{"vite":"8.2.1"}}');
+  const recorded = recordDeliveredPreview(previews, { orgId, projectId, projectRunId, workspaceRoot: deliveredWorkspace,
+    remoteClassification: { availability: 'unavailable', kind: null, entry: null, unavailableReason: 'not-runnable' } });
+  const { claims, routes } = manager();
+  let starts = 0;
+  const previewManager = new PreviewManager({ store: previews, claims, routes, config,
+    launcher: new WorkspaceOnlyLauncher(join(root, 'copies')), workspaceOf: () => deliveredWorkspace, probe: async () => true,
+    remote: { owns: (o, p, r) => o === orgId && p === projectId && r === projectRunId,
+      start: async input => {
+        starts++;
+        expect(input).toMatchObject({ build: 'vite', classification: { kind: 'static', availability: 'available' } });
+        return { imageDigest: 'sha256:' + 'a'.repeat(64), runtime: 'runc', connect: async () => { throw new Error('Not used'); } };
+      }, stop: async () => {} } });
+  expect(previewManager.status(orgId, projectId, projectRunId)).toMatchObject({ availability: 'available', kind: 'static' });
+  expect(starts).toBe(0);
+  expect(previews.getInstance(orgId, projectRunId)).toBeNull();
+  await previewManager.open({ orgId, projectId, projectRunId, opener: { principalId, sessionId: null } });
+  expect(starts).toBe(1);
+  expect(previews.getDescriptor(orgId, projectRunId)).toEqual(recorded);
+  expect(existsSync(join(deliveredWorkspace, 'dist'))).toBe(false);
+  await previewManager.stop(orgId, projectId, projectRunId, 'manual');
+  // Hosted previews cannot acquire the Compute-only preparation capability.
+  expect(manager().manager.status(orgId, projectId, projectRunId)).toMatchObject({ availability: 'unavailable', reason: 'not-runnable' });
+});

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { previewEgressHostsSchema, previewEntrySchema } from './preview.js';
+import { previewBuildSchema, previewEgressHostsSchema, previewEntrySchema } from './preview.js';
 import { deliveryKindSchema } from './taskExecution.js';
 
 export const COMPUTE_PREVIEW_CHUNK_BYTES = 64 * 1024;
@@ -22,6 +22,7 @@ export const computePreviewCommandSchema = z.discriminatedUnion('method', [
     /** The host's delivery descriptor, sent only to a device that advertises
      * `preview-classification`: older copiers parse this object strictly. */
     classification: computePreviewClassificationSchema.optional(),
+    build: previewBuildSchema.optional(),
     attribution: z.boolean(), hardMs: z.number().int().positive().max(2 * 60 * 60_000) }).strict(),
   z.object({ method: z.literal('stop') }).strict(),
   z.object({ method: z.literal('connect') }).strict(),

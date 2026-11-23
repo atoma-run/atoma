@@ -36,6 +36,8 @@ import {
  */
 
 const instantSchema = z.string().datetime();
+export const previewBuildSchema = z.literal('vite');
+
 export const previewModeSchema = z.enum(['app', 'terminal']);
 
 /** A generation asks only for access to that snapshot; omission opens anew. */

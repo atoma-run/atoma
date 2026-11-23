@@ -454,6 +454,11 @@ open: started minutes before address pinning, it created a pinless deployment
 nine days later (2026-10-25). The web retries its hosting start, and an
 unreachable launcher never marks an application unavailable.
 
+Compute Vite preview preparation is owned by [preview](../preview/AGENTS.md#source-only-vite-previews-on-compute).
+`DesktopPreview` passes its fixed build flag only to the app isolate; the
+copier remains read-only with respect to the original delivery. Runtime image
+pairs must be verified before advertising the hello-only capability.
+
 ## Desktop companion
 
 `desktopApp/` packages Electron around `computeApplication.ts`, the same lifecycle

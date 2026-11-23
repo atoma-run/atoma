@@ -177,6 +177,31 @@ very directory EMPTY before copying from it.
   classification would probe the filesystem on a route a browser polls, and
   would answer differently once the next run reseeded from that workspace.
 
+## Source-only Vite previews on Compute
+
+The delivery descriptor remains an immutable observation, not a permanent
+limit on later runtime capabilities. For a delivered Compute workspace with
+`index.html` and a declared Vite dependency, the manager may offer a Vite
+build when the descriptor names no Node entry or built static root. Eligibility
+is cached by immutable run identity (bounded to 256 entries). No descriptor,
+artifact manifest or delivered file is rewritten. Hosted sources keep their
+existing classification; this capability requires the original Compute device.
+
+The private start carries only `build: vite`, never a command. A device must
+advertise `preview-vite`; that hello-only capability is not stored, and only
+verified workspace/preview image pairs advertise it. Roll out server support
+before those images and the client. Older devices refuse before allocating.
+
+The copier verifies the delivered artifact hash before accepting build input,
+and executes nothing. The application container, with no source volume or
+control pipe, runs the copied Vite CLI with fixed build arguments into bounded
+`/data/site`, overriding the deployment base to `/`. It installs nothing and
+runs no package scripts. Existing configuration and plugins are untrusted app
+code confined to that isolate. A 45-second bound, missing dependencies, a build
+failure or absent output index refuse startup; raw TypeScript is never a
+fallback. Only compiled files are served, under the existing static path jail.
+This adds preview preparation, not supervisor verification or a new delivery.
+
 ## The delivery hook is fail-open, and that is measured
 
 `describeDeliveredPreview` is a narrow collaborator on the coordinator, like

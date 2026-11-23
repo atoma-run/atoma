@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { runRequestedViaSchema, startProjectRunInputSchema, type GitHubAccessRequired } from './projects.js';
-import { previewClassificationSchema, previewEgressHostsSchema } from './preview.js';
+import { previewBuildSchema, previewClassificationSchema, previewEgressHostsSchema } from './preview.js';
 
 const identity = z.string().min(1).max(200);
 export const executorPreviewStartSchema = z.object({ orgId: identity, projectId: identity, runId: identity,
   generation: z.number().int().positive(), source: z.enum(['delivered', 'in-flight']),
-  classification: previewClassificationSchema.optional(), mode: z.enum(['app', 'terminal']),
+  classification: previewClassificationSchema.optional(), build: previewBuildSchema.optional(), mode: z.enum(['app', 'terminal']),
   copyMaxBytes: z.number().int().positive(), allowedHosts: previewEgressHostsSchema,
   attribution: z.boolean(), hardMs: z.number().int().positive().max(86_400_000) }).strict();
 export type ExecutorPreviewStart = z.infer<typeof executorPreviewStartSchema>;

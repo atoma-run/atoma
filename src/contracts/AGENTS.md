@@ -60,6 +60,11 @@ plus its bounded byte-less omissions; an inventory refusal is the one typed
 error reply (`export-refused`: an `artifactRefusalCodeSchema` code, the policy
 codes the same tree reproduces, and a 2,000-char message).
 
+The private preview start may carry `build: vite`, a closed runtime capability,
+not a shell command. Only a device advertising hello-only `preview-vite` receives
+it. The connection strips that capability before persistence so older executor
+generations can keep reading stored sessions. Server-first rollout is required.
+
 ## Haystack runtime configuration
 
 `computeRetrievalConfig.ts` owns the host-only UUID-keyed Compute override map

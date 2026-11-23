@@ -2092,3 +2092,25 @@ it('reports whether a failed finalization reached the computer: after assign it 
     } finally { await third.close(); }
   } finally { stderr.mockRestore(); await client.close(); }
 });
+
+it('refuses a Vite build before allocating on old Compute and sends only the fixed build capability to a supported device', async () => {
+  const { ComputePreviewController } = await import('../src/preview/computeController.js');
+  let supported = false;
+  const authorizePreview = vi.fn();
+  const requestPreview = vi.fn(async () => ({ method: 'start', value: { kind: 'static', entry: 'index.html', imageDigest } }));
+  const peer = { signal: new AbortController().signal, acceptsPreviewClassification: () => true,
+    acceptsPreviewVite: () => supported, requestPreview };
+  const controller = new ComputePreviewController({
+    projects: { getProjectRun: () => ({ projectId: 'p', status: 'delivered', artifactManifestHash: 'a'.repeat(64),
+      executionTarget: { kind: 'customer-device', deviceId: 'd' } }) } as never,
+    devices: { currentSession: () => ({ deviceId: 'd', sessionId: 's', generation: 1 }), supports: () => true, authorizePreview } as never,
+    connectionFor: () => peer as never, unavailable: () => {} });
+  const input = { orgId: 'o', projectId: 'p', runId: randomUUID(), generation: 1, source: 'delivered' as const, mode: 'app' as const,
+    build: 'vite' as const, copyMaxBytes: 1024, allowedHosts: [], attribution: false, hardMs: 60_000,
+    classification: { availability: 'available' as const, kind: 'static' as const, entry: null, unavailableReason: null } };
+  await expect(controller.start(input)).rejects.toThrow('Update and prepare');
+  expect(authorizePreview).not.toHaveBeenCalled(); expect(requestPreview).not.toHaveBeenCalled();
+  supported = true;
+  await expect(controller.start(input)).resolves.toMatchObject({ runtime: 'runc' });
+  expect(requestPreview).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ build: 'vite', classification: { kind: 'static', entry: null } }));
+});

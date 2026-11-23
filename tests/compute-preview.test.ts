@@ -77,7 +77,7 @@ it('describes a verified delivered copy by the host classification, never by a m
 });
 
 const images = ['ATOMA_TEST_WORKSPACE_IMAGE', 'ATOMA_TEST_WORKER_IMAGE', 'ATOMA_TEST_PREVIEW_IMAGE'];
-it.skipIf(images.some(key => !process.env[key])).each(['static', 'node', 'terminal'] as const)('serves a real isolated %s copy through a bounded stream with no incoming port or arbitrary destination', async kind => {
+it.skipIf(images.some(key => !process.env[key])).each(['static', 'node', 'terminal', 'vite'] as const)('serves a real isolated %s copy through a bounded stream with no incoming port or arbitrary destination', async kind => {
   const exec = promisify(execFile);
   const docker = async (args: string[]) => (await exec('docker', args, { timeout: 30_000 })).stdout.trim();
   const [workspaceImage, workerImage, previewImage] = await Promise.all(images.map(key => docker(['image', 'inspect', '--format', '{{.Id}}', process.env[key]!])));
@@ -96,12 +96,16 @@ it.skipIf(images.some(key => !process.env[key])).each(['static', 'node', 'termin
       expect(await runtime.executor.execute('fetch_url', { url: started.url, record: true })).toMatchObject({ status: 200 });
       expect(await runtime.command({ method: 'classify-preview' })).toMatchObject({ value: { kind: 'node', entry: 'custom.mjs' } });
     }
+    if (kind === 'vite') {
+      await runtime.executor.execute('write_file', { path: 'package.json', content: '{"type":"module","devDependencies":{"vite":"test"}}' });
+      await runtime.executor.execute('write_file', { path: 'node_modules/vite/bin/vite.js', content: `import { mkdirSync, writeFileSync } from 'node:fs'; if (process.argv.slice(2).join(' ') !== 'build --base / --outDir /data/site --emptyOutDir') process.exit(1); mkdirSync('/data/site', { recursive: true }); writeFileSync('/data/site/index.html', '<h1>Remote preview</h1>');` });
+    }
     const artifacts = await runtime.command({ method: 'artifact-open', options: { allowEmpty: false } });
     if (artifacts.method !== 'artifact-open') throw new Error('Expected real delivery manifest');
     expect(artifacts.value.manifest.files.find(file => file.path === 'docker-entrypoint.sh')?.mode).toBe('100755');
     const artifactHash = artifactManifestHash(artifacts.value.manifest);
     await runtime.command({ method: 'checkpoint-close', handle: artifacts.value.handle });
-    expect(await preview.execute(identity, { ...start, source: 'delivered', artifactHash, mode: kind === 'terminal' ? 'terminal' : 'app' })).toMatchObject({ method: 'start', value: { kind: kind === 'static' ? 'static' : 'node' } });
+    expect(await preview.execute(identity, { ...start, source: 'delivered', artifactHash, ...(kind === 'vite' ? { build: 'vite' as const } : {}), mode: kind === 'terminal' ? 'terminal' : 'app' })).toMatchObject({ method: 'start', value: { kind: kind === 'static' || kind === 'vite' ? 'static' : 'node' } });
     await expect(preview.execute({ ...identity, generation: 2 }, { method: 'connect' })).rejects.toThrow('generation');
     const socket = await openComputePreviewStream(command => preview.execute(identity, command));
     try {

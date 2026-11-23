@@ -39,6 +39,7 @@ export class ComputeConnection {
   private recovery?: ComputeExecution;
   private drainingTools = false;
   private previewClassification = false;
+  private previewVite = false;
   private closed = false;
   private readonly interruption = new AbortController();
   get signal(): AbortSignal { return this.interruption.signal; }
@@ -88,6 +89,7 @@ export class ComputeConnection {
   }
   executing(): boolean { return Boolean(this.execution); }
   /** Whether this device's copier takes the host's delivery classification. */
+  acceptsPreviewVite(): boolean { return this.previewVite && !this.closed; }
   acceptsPreviewClassification(): boolean { return this.previewClassification && !this.closed; }
   private send(frame: ComputeServerFrame): void {
     const text = JSON.stringify(frame);
@@ -109,7 +111,8 @@ export class ComputeConnection {
         this.devices.bindMachine(hello.credential, hello.machineId);
         const services = hello.capabilities.services;
         this.previewClassification = services?.includes('preview-classification') ?? false;
-        const stored = services ? { ...hello.capabilities, services: services.filter(service => service !== 'preview-classification') } : hello.capabilities;
+        this.previewVite = services?.includes('preview-vite') ?? false;
+        const stored = services ? { ...hello.capabilities, services: services.filter(service => service !== 'preview-classification' && service !== 'preview-vite') } : hello.capabilities;
         const connected = this.devices.connect(hello.credential, stored);
         this.session = connected.session;
         this.connected?.(this.session);

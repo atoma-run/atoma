@@ -30,12 +30,14 @@ export class ComputePreviewController implements RemotePreviewRuntime {
     return run?.projectId === projectId && run.executionTarget.kind === 'customer-device';
   }
   async start(input: Parameters<RemotePreviewRuntime['start']>[0]) {
+    if (input.build && (input.source !== 'delivered' || input.mode !== 'app')) throw new Error('Preview build source unavailable');
     const run = this.options.projects.getProjectRun(input.orgId, input.runId);
     if (!run || run.projectId !== input.projectId || run.executionTarget.kind !== 'customer-device' ||
       (input.source === 'in-flight' ? run.status !== 'running' : run.status !== 'delivered' || !run.artifactManifestHash)) throw new Error('Compute preview source unavailable');
     const session = this.options.devices.currentSession(run.executionTarget.deviceId);
     const peer = session && this.options.connectionFor(session);
     if (!peer || !session || !this.options.devices.supports(session, 'preview')) throw new PreviewRuntimeError('compute-unavailable', 'Reconnect Atoma Compute on the computer that built this result, then retry the preview.');
+    if (input.build && !peer.acceptsPreviewVite()) throw new PreviewRuntimeError('compute-unavailable', 'Update and prepare Atoma Compute to build this preview, then retry.');
     this.options.devices.authorizePreview(session, input.runId);
     const identity = { runId: input.runId, generation: input.generation, instanceId: randomUUID() };
     const key = this.key(input.orgId, input.runId, input.generation);
@@ -47,6 +49,7 @@ export class ComputePreviewController implements RemotePreviewRuntime {
       const result = await peer.requestPreview(identity, { method: 'start', source: input.source, mode: input.mode,
         copyMaxBytes: Math.min(input.copyMaxBytes, 512 * 1024 ** 2), allowedHosts: [...input.allowedHosts],
         attribution: input.attribution, hardMs: input.hardMs,
+        ...(input.build ? { build: input.build } : {}),
         ...(input.source === 'delivered' ? { artifactHash: run.artifactManifestHash!, delivery: run.artifactManifest?.delivery } : {}),
         ...(input.source === 'delivered' && input.mode === 'app' && input.classification?.availability === 'available' &&
           input.classification.kind && peer.acceptsPreviewClassification()

@@ -81,7 +81,7 @@ export class DesktopPreview {
       ...(command.attribution ? [] : ['--env', 'ATOMA_TERMINAL_ATTRIBUTION=0']),
       ...(this.proxy ? ['--env', `HTTP_PROXY=http://${this.proxy.proxyHost}:${this.proxy.proxyPort}`, '--env', `HTTPS_PROXY=http://${this.proxy.proxyHost}:${this.proxy.proxyPort}`,
         '--env', 'NO_PROXY=127.0.0.1,localhost,::1', '--env', 'NODE_USE_ENV_PROXY=1'] : []),
-      '--entrypoint', 'node', this.config.previewImage, entry]);
+      '--entrypoint', 'node', this.config.previewImage, entry, ...(command.build && command.mode === 'app' ? ['--build-vite'] : [])]);
     const deadline = Date.now() + 60_000;
     while (!this.closing && Date.now() < deadline) {
       if (/LISTENING_ON_PORT=8080(?!\d)/.test(await docker(['logs', '--tail', '100', this.app]))) break;
