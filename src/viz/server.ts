@@ -1122,6 +1122,7 @@ const PROJECTS_RUNTIME: ProjectsRuntime | null = (() => {
     });
   }
   const projects = new ProjectService({
+    connectors: CONNECTORS,
     store: projectStore,
     auditRead: (read) => {
       if (!EVENTS) throw new Error('Cross-organisation audit unavailable');

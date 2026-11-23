@@ -87,6 +87,7 @@ export class ProjectHttpError extends Error {
 
 
 export interface ProjectServiceDeps {
+  readonly connectors?: Pick<import('../connectors/service.js').ConnectorService, 'projectServers'> | null;
   readonly store: import('./store.js').ProjectStore;
   readonly coordinator: ProjectRunCoordinator;
   readonly github: GitHubStore | null;
@@ -265,6 +266,7 @@ function pageCursor(raw: string | undefined, query: string): PageCursor | null {
 const encodeCursor = (at: string, id: string, query: string) => Buffer.from(JSON.stringify({ at, id, query })).toString('base64url');
 
 export class ProjectService {
+  private readonly connectors: ProjectServiceDeps['connectors'];
   private readonly store: import('./store.js').ProjectStore;
   private readonly coordinator: ProjectRunCoordinator;
   private readonly github: GitHubStore | null;
@@ -276,6 +278,7 @@ export class ProjectService {
 
   constructor(deps: ProjectServiceDeps) {
     this.store = deps.store;
+    this.connectors = deps.connectors;
     this.readAudit = deps.auditRead;
     this.coordinator = deps.coordinator;
     this.github = deps.github;
@@ -523,7 +526,12 @@ export class ProjectService {
       catch { problems.push(serviceProblem(400, 'The configured models or host prerequisites cannot support this run.',
         { code: 'configuration_required', nextAction: 'Check your model selections and provider connection in Settings. Ask the instance administrator to check host prerequisites if they are already configured.' })); }
     }
-    return { projectId, acceptedReferenceRunId: this.store.acceptedReference(orgId, projectId)?.projectRunId ?? null,
+    // Connector settings belong to the active organisation, even on an audited cross-org project read.
+    const selection = orgId === viewer.orgId ? this.connectors?.projectServers(viewer, projectId) : null;
+    const mcpServers = selection?.servers.map(({ id, key, name, host }) => ({
+      key, name, host, enabledForProject: selection.enabled.includes(id),
+    })) ?? null;
+    return { projectId, mcpServers, acceptedReferenceRunId: this.store.acceptedReference(orgId, projectId)?.projectRunId ?? null,
       // The runs a new run may read (readRunIds) or start from (baseRunId), by the one rule both refuse with.
       selectableRuns: this.store.iterationRuns(orgId, projectId, SELECTABLE_RUNS, SELECTABLE_RUNS_SCAN).map(run => ({
         runId: run.projectRunId, title: run.title ?? null, status: run.status, endedAt: run.endedAt,

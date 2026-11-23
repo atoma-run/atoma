@@ -7,6 +7,8 @@ import { retrievalContext } from './helpers/projectRetrievalCorpus.js';
 import { traceDetailPageSchema } from '../src/contracts/clientExperience.js';
 import { clientQuestionViewSchema } from '../src/contracts/clientQuestion.js';
 import Database from 'better-sqlite3';
+import { ConnectorService } from '../src/connectors/service.js';
+import { ConnectorStore } from '../src/connectors/store.js';
 import { createServer, type Server } from 'node:http';
 import { parseRunLog } from '../src/cli/burnin.js';
 import { randomUUID } from 'node:crypto';
@@ -72,7 +74,10 @@ async function fixture(legacy = false, publisherFor?: (f: ReturnType<typeof proj
   github.linkInstallation({ installationId: '123', orgId: f.viewer.orgId, accountId: '123', accountLogin: 'owner',
     targetType: 'Organization', repositorySelection: 'all', permissions: { contents: 'write', administration: 'write' },
     connectedByPrincipalId: f.viewer.principalId });
-  const service = new ProjectService({ store: f.projects, coordinator, github });
+  const connectors = new ConnectorService({ store: ConnectorStore.open(f.dbPath), encryption: null,
+    fetch: () => { throw new Error('Unexpected connector request'); }, redirectUrl: 'https://atoma.example/callback',
+    events: () => undefined, projectInOrg: (org, project) => !!f.projects.getProject(org, project) });
+  const service = new ProjectService({ store: f.projects, coordinator, github, connectors });
   let currentViewer = f.viewer;
   const server: Server = createServer((req, res) => void host.handle(req, res));
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -94,7 +99,7 @@ async function fixture(legacy = false, publisherFor?: (f: ReturnType<typeof proj
     expect(result.content).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'text' })]));
     return result;
   };
-  return { ...f, service, coordinator, driver, client, call, url, setViewer: (v: typeof f.viewer) => { currentViewer = v; } };
+  return { ...f, service, coordinator, connectors, driver, client, call, url, setViewer: (v: typeof f.viewer) => { currentViewer = v; } };
 }
 
 it.each([false, true])('renders cards only for start/resume, keeping repeated readers data-only (legacy=%s)', async (legacy) => {
@@ -268,6 +273,22 @@ it('parses a live trace at most once per window for a polled task, not at every 
   try {
     expect(f.service.projectRunState(f.viewer, ref.projectId, ref.runId).progress.stage).toBe('planning');
   } finally { later.mockRestore(); }
+});
+
+it('distinguishes an organisation connection from a project-enabled server before launch', async () => {
+  const f = await fixture();
+  const admin = { ...f.viewer, platformAdmin: true };
+  const ref = { projectId: f.project.projectId };
+  const read = async () => (await f.call('atoma_project_readiness', ref)).structuredContent;
+  expect(await read()).toMatchObject({ mcpServers: [] });
+  const server = f.connectors.create(admin, { name: 'DVF', key: 'dvf', url: 'https://mcp.example/private-path', authKind: 'none' });
+  const summary = { name: 'DVF', key: 'dvf', host: 'mcp.example' };
+  expect(await read()).toMatchObject({ mcpServers: [{ ...summary, enabledForProject: false }] });
+  f.connectors.setProjectServers(admin, ref.projectId, { expectedServerIds: [], serverIds: [server.id] });
+  const enabled = await read();
+  expect(enabled).toMatchObject({ mcpServers: [{ ...summary, enabledForProject: true }] });
+  expect(JSON.stringify(enabled)).not.toContain('private-path');
+  expect(f.driver).not.toHaveBeenCalled();
 });
 
 it('checks saved readiness without executing, reserving work or exposing credentials', async () => {
