@@ -129,8 +129,8 @@ export class PreviewManager {
    * existing source delivery. Cache bounded source eligibility per immutable delivered identity; polling
    * does not repeatedly inspect the filesystem. */
   private buildFor(orgId: string, projectId: string, runId: string, descriptor: PreviewDescriptor | null): 'vite' | undefined {
-    if (!descriptor || descriptor.projectId !== projectId || descriptor.kind === 'node' || descriptor.root ||
-      (descriptor.availability === 'unavailable' && descriptor.unavailableReason !== 'not-runnable' && descriptor.unavailableReason !== 'unsupported-deliverable') ||
+    if (!descriptor || descriptor.projectId !== projectId || descriptor.availability !== 'unavailable' ||
+      (descriptor.unavailableReason !== 'not-runnable' && descriptor.unavailableReason !== 'unsupported-deliverable') ||
       !this.deps.remote?.owns(orgId, projectId, runId)) return undefined;
     const key = this.key(orgId, runId);
     if (this.buildSources.has(key)) return this.buildSources.get(key) ? 'vite' : undefined;
@@ -672,13 +672,14 @@ export class PreviewManager {
   }
 
   private async startRemote(input: PreviewOpenInput, generation: number, source: 'delivered' | 'in-flight', allowedHosts: readonly string[]): Promise<void> {
+    const build = source === 'delivered' && input.mode !== 'terminal' ? this.buildFor(input.orgId, input.projectId, input.projectRunId, this.deps.store.getDescriptor(input.orgId, input.projectRunId)) : undefined;
     const descriptor = source === 'delivered' ? this.runnableDescriptor(input.orgId, input.projectId, input.projectRunId) : null;
     // The strict executor contract carries classification, never a storage row.
     const classification = descriptor ? { availability: descriptor.availability, kind: descriptor.kind,
       entry: descriptor.entry, unavailableReason: descriptor.unavailableReason } : undefined;
     const running = await this.deps.remote!.start({ orgId: input.orgId, projectId: input.projectId, runId: input.projectRunId,
       ...(classification ? { classification } : {}),
-      ...(input.mode !== 'terminal' && this.buildFor(input.orgId, input.projectId, input.projectRunId, descriptor) ? { build: 'vite' as const } : {}),
+      ...(build ? { build } : {}),
       generation, source, mode: input.mode ?? 'app', allowedHosts, copyMaxBytes: this.deps.config.copyMaxBytes,
       attribution: this.deps.attribution?.(input.orgId) ?? true, hardMs: this.deps.config.hardMs });
     const host = `${previewGenerationHost(input.orgId, input.projectRunId, generation)}.${this.deps.config.domain}`;

@@ -182,7 +182,7 @@ very directory EMPTY before copying from it.
 The delivery descriptor remains an immutable observation, not a permanent
 limit on later runtime capabilities. For a delivered Compute workspace with
 `index.html` and a declared Vite dependency, the manager may offer a Vite
-build when the descriptor names no Node entry or built static root. Eligibility
+build for a delivery classified as not runnable or unsupported. Eligibility
 is cached by immutable run identity (bounded to 256 entries). No descriptor,
 artifact manifest or delivered file is rewritten. Hosted sources keep their
 existing classification; this capability requires the original Compute device.
