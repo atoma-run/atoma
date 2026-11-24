@@ -54,7 +54,8 @@ function takeReturnNotice(): { ok: boolean; message: string } | null {
   } catch { return null; }
 }
 
-export function McpServersPanel({ t, locale, enabled, onError }: {
+export function McpServersPanel({ t, locale, enabled, onError, onChooseProject }: {
+  onChooseProject: () => void;
   t: Translate; locale: string; enabled: boolean; onError: (message: string | null) => void;
 }) {
   const [data, setData] = useState<VizMcpServers | null>(null);
@@ -158,6 +159,11 @@ export function McpServersPanel({ t, locale, enabled, onError }: {
       ) : null}
       {status ? <p role="status" className="gpu-org-models-status">{status}</p> : null}
 
+      {manage && data.servers.length > 0 ? (
+        <div className="gpu-settings-actions">
+          <button type="button" onClick={onChooseProject}>{t('settings.mcpServers.chooseProject')}</button>
+        </div>
+      ) : null}
       {data.servers.length === 0 ? <p className="gpu-org-models-hint">{t('settings.mcpServers.empty')}</p> : null}
       <ul className="gpu-mcp-server-list">
         {data.servers.map(server => {

@@ -24,9 +24,9 @@ const SERVER: ConnectorView = {
   createdAt: '2026-10-16T08:00:00.000Z', updatedAt: '2026-10-16T08:00:00.000Z',
 };
 
-function panel() {
+function panel(onChooseProject = vi.fn()) {
   const onError = vi.fn();
-  render(createElement(McpServersPanel, { t, locale: 'en', enabled: true, onError }));
+  render(createElement(McpServersPanel, { t, locale: 'en', enabled: true, onError, onChooseProject }));
   return onError;
 }
 
@@ -48,10 +48,12 @@ describe('Settings → Your MCP servers', () => {
   });
 
   it('adds a header server with the derived identifier and never echoes the secret', async () => {
-    vi.spyOn(api, 'mcpServers').mockResolvedValue({ servers: [], encryptionReady: true, canManage: true });
+    vi.spyOn(api, 'mcpServers').mockResolvedValueOnce({ servers: [], encryptionReady: true, canManage: true })
+      .mockResolvedValue({ servers: [SERVER], encryptionReady: true, canManage: true });
     const create = vi.spyOn(api, 'createMcpServer').mockResolvedValue({ server: SERVER });
     const user = userEvent.setup();
-    panel();
+    const choose = vi.fn();
+    panel(choose);
     await user.click(await screen.findByRole('button', { name: /Add an MCP server/ }));
     const form = screen.getByRole('form', { name: 'Add an MCP server' });
     await user.type(within(form).getByLabelText('Name'), 'Notes App');
@@ -66,6 +68,8 @@ describe('Settings → Your MCP servers', () => {
       key: 'notes-app', name: 'Notes App', url: 'https://notes.example/mcp', authKind: 'header',
       headerName: 'Authorization', headerValue: 'Bearer s3cret',
     }));
+    await user.click(await screen.findByRole('button', { name: 'Choose a project' }));
+    expect(choose).toHaveBeenCalledOnce();
   });
 
   it('switches a tool off with the revision it was shown', async () => {

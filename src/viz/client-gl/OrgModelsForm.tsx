@@ -83,6 +83,7 @@ export function OrgModelsForm({
   overlaysInert,
   onError,
   profile,
+  onChooseProject,
   initialTab = 'general',
   children,
 }: {
@@ -97,6 +98,7 @@ export function OrgModelsForm({
   /** The General tab's profile block (display name), rendered above the organisation. */
   profile?: ReactNode;
   initialTab?: SettingsTab;
+  onChooseProject: () => void;
   /**
    * The MCP tab's content. The frame is `position: fixed` and is the ONE
    * scroll container of the Settings body; a sibling rendered beside it
@@ -678,7 +680,7 @@ export function OrgModelsForm({
       </section>
 
       <section {...panelProps('mcpServers')}>
-        <McpServersPanel t={t} locale={locale} enabled={enabled} onError={onError} />
+        <McpServersPanel onChooseProject={onChooseProject} t={t} locale={locale} enabled={enabled} onError={onError} />
       </section>
 
       <section {...panelProps('mcp')}>{children}</section>

@@ -151,6 +151,7 @@ function orgModelsForm(
           locale: 'en',
           enabled,
           canManageOrg: false,
+          onChooseProject: vi.fn(),
           platformAdmin,
           organisation: organisation(viewerRole),
           overlaysInert: false,

@@ -1675,6 +1675,7 @@ function GpuAppContent({
                 t={t}
                 locale={state.locale}
                 initialTab={state.settingsTab}
+                onChooseProject={() => activate('runs.projects.all')}
                 enabled={true}
                 canManageOrg={
                   authSnapshot.viewer.platformAdmin ||
