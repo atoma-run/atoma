@@ -3514,9 +3514,9 @@ export class GpuRenderer {
    * ONCE per render rather than per frame. The scene is static between
    * renders — scrolling rebuilds it — so these stay valid until the next one.
    */
-  private anchorCastShadows() {
+  private anchorCastShadows(entries = this.castShadows) {
     this.lastCastShadowFrame.strength = Number.NaN;
-    for (const entry of this.castShadows) {
+    for (const entry of entries) {
       if (entry.shadow.destroyed || !entry.parent.parent) continue;
       // Top-left only: the scene translates but never scales beyond the ±3.5%
       // hover/press pulse on chips, so the local width/height carry over to
@@ -3830,6 +3830,7 @@ export class GpuRenderer {
     container.hitArea = new Rectangle(0, 0, width, height);
     // A segment casts no shadow of its own: the strip's frame carries the
     // lift, and per-segment shadows would print a seam under every `|`.
+    const firstShadow = this.castShadows.length;
     const dropShadow = segment
       ? null
       : this.addSurfaceShadow(container, width, height, {
@@ -3866,6 +3867,7 @@ export class GpuRenderer {
     });
     container.addChild(base);
     const insetShadow = this.addInsetShadow(container, width, height, 8);
+    const chipShadows = this.castShadows.slice(firstShadow);
 
     // Segmented filters share a quiet outline. The brighter face and heavier
     // label identify the selection even when adjacent options have similar hues.
@@ -3945,11 +3947,14 @@ export class GpuRenderer {
       const targetScale = segment ? (pressed ? 0.975 : 1) : pressed ? 0.955 : hovered ? 1.035 : 1;
       const scale = easedEntrance * targetScale;
       container.alpha = easedEntrance;
-      container.scale.set(scale);
-      container.position.set(
-        x + width * (1 - scale) / 2,
-        y + height * (1 - scale) / 2 + (pressed ? 1.5 : 0)
-      );
+      const left = x + width * (1 - scale) / 2;
+      const top = y + height * (1 - scale) / 2 + (pressed ? 1.5 : 0);
+      if (container.x !== left || container.y !== top || container.scale.x !== scale) {
+        container.scale.set(scale);
+        container.position.set(left, top);
+        // Staggered chip entrances can outlast the row's slide.
+        this.anchorCastShadows(chipShadows);
+      }
       const pulse = 0.5 + 0.5 * Math.sin(elapsed / 170);
       aura.alpha = active
         ? 0.2 + pulse * 0.22

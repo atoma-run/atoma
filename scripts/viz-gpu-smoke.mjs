@@ -718,7 +718,10 @@ async function writeRunFixture(dir) {
   // `isRunLive`'s 12-minute window and start the trace poll that the live arm
   // at the bottom of this file owns and measures.
   const t0 = Date.parse('2026-01-02T03:04:05.000Z');
-  const roles = ['plan', 'validate', 'execute'];
+  // The anchor scenario needs a second row: short inline role strips leave the
+  // timeline at the same height and correctly have no collapse animation.
+  const roles = ['plan', 'execute', 'prefilter', 'validate-plan', 'validate-result',
+    'verdict-repair', 'fallback-plan', 'fallback-execute', 'draft-checklist', 'jev-audit', 'skill'];
   const tools = ['read_file', 'write_file', 'shell', 'validate_html'];
   const events = [];
   const diffContext = Array.from({ length: 80 }, (_, i) => `export const retainedLine${i} = "complete recorded context";`).join('\n');
@@ -2109,6 +2112,14 @@ try {
 
       await clickTarget('run.compact.filters');
       const initial = await probe();
+      const stacked = await anchorPage.evaluate(() => {
+        const targets = globalThis.__ATOMA_GPU__.hitTargets();
+        const kinds = targets.filter(target => target.id.startsWith('run.filter.kind.'));
+        const roles = targets.filter(target => target.id.startsWith('run.filter.role.'));
+        return kinds.length > 0 && roles.length > 0 &&
+          Math.min(...roles.map(target => target.y)) >= Math.max(...kinds.map(target => target.y + target.height));
+      });
+      assert.ok(stacked, 'anchor fixture must place the role filters below the kind filters');
       // Hide the role row (kind: tool), let the exit settle and re-render.
       await clickTarget('run.filter.kind.tool');
       await anchorPage.evaluate(() => new Promise((resolve) => setTimeout(resolve, 900)));
