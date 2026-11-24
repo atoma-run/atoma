@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AtomRegistry } from '../src/registry/atomRegistry.js';
 import { openDb } from '../src/registry/db.js';
 import { ensureCanonicalConnectorsL1, ensureCanonicalFileScribeL1 } from '../src/atoms/capability.js';
-import { taskContextLines, MCP_SERVERS_GUIDANCE } from '../src/atoms/taskContext.js';
+import { delegatedTaskContext, taskContextLines, MCP_SERVERS_GUIDANCE } from '../src/atoms/taskContext.js';
 import { elementForTool, HOST_TOOL_NAMES } from '../src/contracts/toolTaxonomy.js';
 import { decodeConnectorLaunch, encodeConnectorLaunch, MCP_CALL_TOOL_NAME, MCP_LIST_TOOL_NAME } from '../src/contracts/mcpConnectors.js';
 import {
@@ -159,6 +159,23 @@ describe('what the run tells its planners', () => {
     expect(taskContextLines(task).join('\n')).toContain(MCP_SERVERS_GUIDANCE);
     // A resumed root's saved servers are replaced, not kept.
     expect(withPreviousRunInputs(task, {}, null).inputs?.['availableMcpServers']).toBeUndefined();
+  });
+
+  it('keeps the current launch authoritative from the root through delegated plans', () => {
+    const tenant = { ATOMA_TENANT_RUN: '1' };
+    const connected = withPreviousRunInputs({ description: 'Use official records' }, tenant, launch);
+    const empty = withPreviousRunInputs(connected, tenant, null);
+    const child = { description: 'Acquire source rows', inputs: { availableMcpServers: ['invented'] } };
+    for (const root of [connected, empty]) {
+      const phase = { description: child.description, ...delegatedTaskContext(root, child) };
+      const leaf = { description: 'Read one record', ...delegatedTaskContext(phase, child) };
+      for (const task of [root, phase, leaf]) {
+        expect(task.inputs?.['availableMcpServers']).toEqual(root === empty ? [] : connected.inputs?.['availableMcpServers']);
+        const prompt = taskContextLines(task).join('\n');
+        expect(prompt).toContain(root === empty ? 'No external MCP servers were supplied' : MCP_SERVERS_GUIDANCE);
+        expect(prompt).not.toMatch(/invented|secret-token|s3cret-path/);
+      }
+    }
   });
 
   it('fails closed on a malformed hand-off', () => {

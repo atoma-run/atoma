@@ -30,7 +30,8 @@ export function withPreviousRunInputs(task: Task, env: NodeJS.ProcessEnv, connec
     ...(landing.length ? { previousRunLanding: landing } : {}),
     ...(results ? { previousRunResults: results } : {}),
     ...(repositoryPreparation ? { repositoryPreparation } : {}),
-    ...(availableMcpServers?.length ? { availableMcpServers } : {}),
+    // Tenant planners must see an empty launch as explicitly as the connector tools do.
+    ...(availableMcpServers || env['ATOMA_TENANT_RUN'] === '1' ? { availableMcpServers: availableMcpServers ?? [] } : {}),
     // Where each copy is and what it holds, never its files (src/contracts/readRuns.ts).
     ...(readRuns ? { readRuns: readRunsInput(readRuns) } : {}),
   } };

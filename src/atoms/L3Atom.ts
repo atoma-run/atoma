@@ -587,7 +587,15 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
     this.pendingStrategy = l3StrategySchema.parse(saved.strategy);
     this.pendingPlannedPhases = saved.plannedPhases;
     this.triedChildren.beginTask(task.description);
-    const savedTask: Task = { ...task, inputs: saved.inputs };
+    // A checkpoint restores the plan, but its connector sessions belonged to the old launch.
+    const currentServers = task.inputs?.['availableMcpServers'];
+    let inputs = saved.inputs;
+    if (currentServers !== undefined || inputs?.['availableMcpServers'] !== undefined) {
+      inputs = { ...inputs };
+      if (currentServers === undefined) delete inputs['availableMcpServers'];
+      else inputs['availableMcpServers'] = currentServers;
+    }
+    const savedTask: Task = { ...task, inputs };
     const completed = checkpoint.completed.length;
     let plan = savedPlan;
     let repairs: readonly TraceEntry[] = [];
@@ -599,7 +607,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         const instruction = checkpoint.replanAfterAnswer
           ? 'The client has answered the blocking question in clientAnswers. Replan ONLY the remaining work toward the original goal. Do not ask the answered question again or replay completed phases. Preserve their files and results. Return a sequential plan for the remaining phases only; the host retains the completed prefix. Historical summaries are context, not fresh proof.'
           : 'The saved plan for the remaining work was refused by the delegation contract review (see PREVIOUS PLAN ATTEMPT). Replan ONLY the remaining work toward the original goal. Do not replay completed phases. Preserve their files and results. Return a sequential plan for the remaining phases only; the host retains the completed prefix. Historical summaries are context, not fresh proof.';
-        const continuation: Task = { ...savedTask, inputs: { ...saved.inputs, checkpointContinuation: {
+        const continuation: Task = { ...savedTask, inputs: { ...savedTask.inputs, checkpointContinuation: {
           instruction, completedPhaseCount: completed, completedSummaries,
         } } };
         const remaining = context ? await this.plan(continuation, ctx, feedback, context) : await this.plan(continuation, ctx, feedback);
@@ -622,7 +630,7 @@ export class L3Atom extends Atom implements Supervisor<L2Atom> {
         },
         precheck: next => next.aggregation.mode === 'sequential' ? undefined
           : 'Remaining plan rejected before review: a resumed run executes sequentially; return aggregation.mode "sequential" for the remaining phases.',
-        reviewTask: { ...savedTask, inputs: { ...saved.inputs, completedPhaseCount: completed,
+        reviewTask: { ...savedTask, inputs: { ...savedTask.inputs, completedPhaseCount: completed,
           continuationScope: 'Review only the remaining subtasks shown in this plan. Completed phases are historical context, not work to repeat.',
         } },
         from: completed, allowDiscovery: false, continuation: true,

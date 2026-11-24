@@ -169,21 +169,26 @@ describe('durable sequential run continuation', () => {
     const credit = f.counters();
     const digest = checkpointWorkspaceDigest(first.workspace);
     const second = reserve(first.id);
+    // This launch sees a configured server that was absent when the first process paused.
+    const connectorEnv = { ATOMA_MCP_CONNECTORS: JSON.stringify({ version: 1, orgId: viewer.orgId, projectId: project.projectId,
+      connectors: [{ status: 'unavailable', serverId: randomUUID(), key: 'commune-data', name: 'Commune data', reason: 'authorization_required' }] }) };
     let source = first.id;
     let continuation = second;
     if (crashAfterPlan) {
-      const crashed = f.run(['--container', '--resume', source], 'replanned', { ...second.env, CHECKPOINT_TEST_EXPECT_ANSWER: '1' });
+      const crashed = f.run(['--container', '--resume', source], 'replanned', { ...second.env, ...connectorEnv, CHECKPOINT_TEST_EXPECT_ANSWER: '1' });
       expect(crashed.signal, crashed.stdout + crashed.stderr).toBe('SIGKILL');
       expect(checkpoints.read(second.id).root?.reconciledQuestionId).toBe(question.questionId);
       expect(f.counters()).toEqual(credit);
       source = second.id;
       continuation = reserve(source);
     }
-    const resumed = f.run(['--container', '--resume', source], '', { ...continuation.env, CHECKPOINT_TEST_EXPECT_ANSWER: '1' });
+    const resumed = f.run(['--container', '--resume', source], '', { ...continuation.env, ...connectorEnv, CHECKPOINT_TEST_EXPECT_ANSWER: '1' });
     expect(resumed.status, resumed.stdout + resumed.stderr).toBe(0);
     expect(f.report().outcome).toBe('delivered');
     expect(readFileSync(join(f.root, 'effects.log'), 'utf8')).toBe('phase-one.txt\nphase-two.txt\n');
-    expect(readFileSync(join(f.root, 'answer-prompt.txt'), 'utf8')).toContain('Keep both login methods');
+    const prompt = readFileSync(join(f.root, 'answer-prompt.txt'), 'utf8');
+    expect(prompt).toContain('Keep both login methods');
+    expect(prompt).toContain('commune-data');
     expect(f.report().calls.filter(c => c.startsWith('plan:3:'))).toHaveLength(crashAfterPlan ? 0 : 1);
     // The crashed successor reviewed and recorded its replan; its own successor does not judge it again.
     expect(f.report().rootReviews).toBe(crashAfterPlan ? 0 : 1);

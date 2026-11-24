@@ -100,6 +100,8 @@ export function goalPromptText(goal: string, target: 'project' | 'operator' = 'o
     '',
     ...(project ? [
       'Take the lead on discovery. For an existing project, find it with atoma_projects_list, read its newest run with atoma_project_runs and atoma_run_status, and inspect relevant repository context. Propose one useful next outcome based on what is finished, incomplete or still unknown. For a new project, inspect the repository and available GitHub installations first. Ask the person only for decisions or requirements the available context cannot settle.',
+      'When the person requires a particular data source, keep it in the first delivery and check its project access with atoma_project_readiness when the project exists. Propose an acceptance criterion that exercises the requested user flow with real records from that source. Distinguish an offline snapshot from a live query according to the request. Never defer the source or substitute example data without the person’s agreement.',
+      'For repository cleanup, distinguish the files the run can deliver from the Git state established at publication. Frame run criteria in terms of the observable workspace and built artifact. If a Git history or index change is itself required, call out the separate publication check.',
       '',
     ] : []),
     project

@@ -1006,6 +1006,22 @@ describe('root delegation review robustness', () => {
       expect(planned.mock.calls[0]?.[4]?.digest).not.toBe(root.approval.digest);
     });
 
+    it.each([true, false])('reviews and executes with current connector access on resume (enabled=%s)', async enabled => {
+      const { tissue } = actors();
+      const servers = [{ server: 'public-data', name: 'Public data', available: true }];
+      const task: Task = { description: 'Use official records', inputs: { availableMcpServers: enabled ? [] : servers }, criteria };
+      const root = savedRoot(tissue, task, sequential());
+      const { ctx, planned } = resumingCtx(root);
+      const execute = vi.spyOn(tissue, 'execute').mockResolvedValue(result);
+      ctx.llm.enqueueText(approval);
+      const current = enabled ? servers : [];
+      await tissue.handle({ ...task, inputs: { availableMcpServers: current } }, ctx);
+      expect(ctx.llm.calls.filter(call => call.role === 'validate-plan')).toHaveLength(1);
+      expect(execute.mock.calls[0]?.[0].inputs?.['availableMcpServers']).toEqual(current);
+      expect(planned.mock.calls[0]?.[0].inputs?.['availableMcpServers']).toEqual(current);
+      expect(planned.mock.calls[0]?.[4]?.digest).not.toBe(root.approval.digest);
+    });
+
     // Second review 2026-10-16: the digest binds the contract, the system
     // prompt, the reviewing model and the root actor; each is changed alone.
     const sha = (text: string) => createHash('sha256').update(text).digest('hex');
