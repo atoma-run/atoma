@@ -112,7 +112,7 @@
     "@modelcontextprotocol/server": "^2.3.0",
     "better-sqlite3": "13.0.3",
     "fflate": "^0.8.3",
-    "i18next": "^25.10.10",
+    "i18next": "^26.7.2",
     "js-tiktoken": "1.0.21",
     "jsonrepair": "^3.14.0",
     "officeparser": "7.8.0",

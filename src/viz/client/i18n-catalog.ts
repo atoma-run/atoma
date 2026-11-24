@@ -68,7 +68,6 @@ export function createTranslator(catalogs: Record<Locale, Record<string, string>
     // copy at all instead of consulting fallbackLng.
     returnEmptyString: false,
     returnNull: false,
-    showSupportNotice: false,
   });
 
   return (locale: Locale, key: string, vars?: Record<string, unknown>): string => {

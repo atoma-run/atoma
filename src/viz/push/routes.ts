@@ -117,7 +117,6 @@ void pushI18n.init({
     ])
   ),
   returnNull: false,
-  showSupportNotice: false,
 });
 
 function countFromDetail(event: PlatformEvent, key: string): number {
