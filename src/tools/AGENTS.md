@@ -68,6 +68,18 @@ Neighbours:
   Default egress includes package registries and the shared public resource
   hosts in `contracts/webResources.ts`. Chromium receives the worker proxy
   explicitly; its loopback bypass keeps local application probes direct.
+- A REFUSAL IS NAMED, never a bare `fetch failed` (2026-11-26). Behind
+  `NODE_USE_ENV_PROXY`, Node's fetch reports the proxy's 403 as `fetch failed`
+  (cause `Request was cancelled.`), so three DVF runs on a Compute device,
+  whose allowlist is the default, retried an official download for 189
+  minutes. After its own request fails, `fetch_url` sends the same proxy one
+  `CONNECT` (`egressDenial.ts`, 3 s) and, on its 403, returns `egressDenied`
+  and an error saying no retry can reach the host. The proxy's body prefix and
+  `x-atoma-egress-denial` header (`policy` or `resolution`) are ONE contract,
+  `src/contracts/egressDenial.ts`; only `policy` claims the refusal is
+  permanent, since a resolution failure may be transient. A model's own
+  `run_shell` fetch still sees Node's message. Compute receives this with its
+  worker image, not with a server release.
 - Document retrieval shares one Haystack process per run. A search timeout
   kills that process; subsequent searches in the same run return `unavailable`.
   The 10-second deadline bounds work but does not restart the retrieval service.

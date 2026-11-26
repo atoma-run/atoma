@@ -1,4 +1,5 @@
 import { runParentTests } from './parentTests.js';
+import { egressDenialError, probeEgressDenial } from './egressDenial.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, lstatSync, statSync } from 'node:fs';
 import { basename, dirname, join, relative, sep } from 'node:path';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -1654,6 +1655,10 @@ export function fetchUrlTool(opts: BuiltinToolOptions): BuiltinTool {
         // (ECONNREFUSED and friends) that tells a dead server from a typo.
         const code = typeof e.cause?.code === 'string' ? e.cause.code : undefined;
         const message = code && !e.message.includes(code) ? `${e.message} (${code})` : e.message;
+        // Behind the run's egress proxy a refusal reaches fetch as a bare
+        // "fetch failed": ask the proxy itself (src/contracts/egressDenial.ts).
+        const denial = await probeEgressDenial(url);
+        if (denial) return { ok: false, error: egressDenialError(denial), egressDenied: denial };
         return { ok: false, error: `${message}${servedOriginsHintFor(url, opts.servedOrigins)}${servedOriginExitNote(url, opts.servedOrigins)}` };
       } finally {
         clearTimeout(timer);

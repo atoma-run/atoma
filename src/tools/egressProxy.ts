@@ -17,6 +17,11 @@
 import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http';
 import { connect as netConnect, type Socket } from 'node:net';
 import { decideEgress, DEFAULT_EGRESS_ALLOWLIST, resolvePublicEgress } from './egressPolicy.js';
+import { EGRESS_DENIAL_HEADER, EGRESS_DENIED_PREFIX, type EgressDenialKind } from '../contracts/egressDenial.js';
+
+const denialHeaders = (kind: EgressDenialKind): Record<string, string> => ({ 'content-type': 'text/plain', [EGRESS_DENIAL_HEADER]: kind });
+const connectDenial = (kind: EgressDenialKind, reason: string): string =>
+  `HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n${EGRESS_DENIAL_HEADER}: ${kind}\r\n\r\n${EGRESS_DENIED_PREFIX}${reason}\n`;
 
 export interface EgressProxyOptions {
   readonly port: number;
@@ -55,8 +60,8 @@ export function startEgressProxy(opts: EgressProxyOptions): Promise<RunningEgres
     const d = decideEgress(target, { allowlist, defaultPort: 80, ...(opts.allowedPorts ? { allowedPorts: opts.allowedPorts } : {}) });
     log(`[egress] ${d.allowed ? 'ALLOW' : 'DENY '} http ${d.host}:${d.port} — ${d.reason}`);
     if (!d.allowed) {
-      res.writeHead(403, { 'content-type': 'text/plain' });
-      res.end(`egress denied: ${d.host}:${d.port} — ${d.reason}\n`);
+      res.writeHead(403, denialHeaders('policy'));
+      res.end(`${EGRESS_DENIED_PREFIX}${d.host}:${d.port} — ${d.reason}\n`);
       return;
     }
     void destination(d.host).then((address) => {
@@ -78,8 +83,8 @@ export function startEgressProxy(opts: EgressProxyOptions): Promise<RunningEgres
       log(`[egress] DENY http ${d.host}:${d.port} — ${err.message}`);
       if (res.destroyed) return;
       if (res.headersSent) { res.destroy(); return; }
-      res.writeHead(403, { 'content-type': 'text/plain' });
-      res.end(`egress denied: ${err.message}\n`);
+      res.writeHead(403, denialHeaders('resolution'));
+      res.end(`${EGRESS_DENIED_PREFIX}${err.message}\n`);
     });
   });
 
@@ -93,7 +98,7 @@ export function startEgressProxy(opts: EgressProxyOptions): Promise<RunningEgres
       // A refused client may already have reset its socket. Handle a failed
       // reply locally: an unhandled EPIPE would kill every tunnel in this proxy.
       clientSocket.on('error', () => clientSocket.destroy());
-      clientSocket.end(`HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\negress denied: ${d.reason}\n`);
+      clientSocket.end(connectDenial('policy', d.reason));
       return;
     }
     // A client may disconnect during DNS resolution, including a refused client.
@@ -116,7 +121,7 @@ export function startEgressProxy(opts: EgressProxyOptions): Promise<RunningEgres
     }).catch((err: Error) => {
       log(`[egress] DENY CONNECT ${d.host}:${d.port} — ${err.message}`);
       if (clientSocket.destroyed) return;
-      clientSocket.end(`HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\negress denied: ${err.message}\n`);
+      clientSocket.end(connectDenial('resolution', err.message));
     });
   });
 
