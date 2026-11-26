@@ -31,6 +31,17 @@ async function docker(args: string[]): Promise<string> {
 /** Docker Desktop profile, deliberately not advertised as production gVisor.
  * No host paths, secrets, engine socket or caller-authored Docker options enter
  * a workload. A private control container owns snapshots and workspace changes. */
+/**
+ * The public Internet, as on the hosted server (`ATOMA_EGRESS_ALLOWLIST=*`,
+ * owner decision 2026-10-13), extended to Compute on 2026-11-26. Until then
+ * no list was passed and the proxy fell back to the registry default: three
+ * DVF runs on this profile retried an official download refused for 189
+ * minutes. Wildcard mode still refuses every private, loopback and link-local
+ * address, so the device's own network stays out of reach; `--no-network`
+ * remains the device owner's switch to turn egress off.
+ */
+export const COMPUTE_EGRESS_ALLOWLIST: readonly string[] = ['*'];
+
 export class DesktopCompute {
   private readonly instanceId = randomUUID();
   private readonly workspaceVolume: string;
@@ -303,7 +314,7 @@ export class DesktopCompute {
       // This check runs on the Linux filesystem, while no worker holds it.
       const legacy = await this.active().runtime.ensureReadRuns();
       if (legacy) throw new Error('Legacy read-run copy layout requires a new run');
-      if (this.config.egress) this.egress = await startEgressSidecar({ runId: `compute-${this.config.machineId}`, image: this.config.workerImage },
+      if (this.config.egress) this.egress = await startEgressSidecar({ runId: `compute-${this.config.machineId}`, image: this.config.workerImage, allowlist: COMPUTE_EGRESS_ALLOWLIST },
         { launcher: createContainerLauncher({ image: this.config.workerImage }) });
       const worker = new LocalContainerToolExecutor({ workspaceHostPath: '/workspace/current',
         resourceBudget: computeWorkloadBudget(this.config.resourceBudget).tools,

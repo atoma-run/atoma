@@ -146,7 +146,7 @@ it.skipIf(!workspaceImage || !workerImage)('recovers recorded volumes for export
   }
 }, 90_000);
 
-it.skipIf(!workspaceImage || !workerImage)('permits registry egress only through the isolated desktop proxy and reconciles its networks', async () => {
+it.skipIf(!workspaceImage || !workerImage)('permits public egress only through the isolated desktop proxy and reconciles its networks', async () => {
   const machineId = randomUUID(), worker = await docker(['image', 'inspect', '--format', '{{.Id}}', workerImage!]);
   const runtime = new DesktopCompute({ machineId, egress: true, workerImage: worker,
     workspaceImage: await docker(['image', 'inspect', '--format', '{{.Id}}', workspaceImage!]) });
@@ -155,8 +155,12 @@ it.skipIf(!workspaceImage || !workerImage)('permits registry egress only through
     await runtime.open(); await runtime.command({ method: 'prepare', clean: false });
     const allowed = await runtime.executor.execute('fetch_url', { url: 'https://registry.npmjs.org/left-pad/latest', timeoutMs: 20_000 });
     expect(allowed).toMatchObject({ status: 200 });
+    // A public host outside the registry default (2026-11-26): the DVF runs' source.
+    const publicHost = await runtime.executor.execute('fetch_url', { url: 'https://www.data.gouv.fr/', method: 'HEAD', timeoutMs: 20_000 });
+    expect(publicHost).toMatchObject({ ok: true });
+    // The device's own network stays refused: Docker Desktop resolves this name to a private address.
     const denied = await runtime.executor.execute('fetch_url', { url: 'http://host.docker.internal:4111/api/runs', timeoutMs: 3000 });
-    expect(denied).toMatchObject({ ok: false, error: expect.any(String) });
+    expect(denied).toMatchObject({ ok: false, egressDenied: { host: 'host.docker.internal' } });
     const workerId = await docker(['ps', '-q', '--filter', filter, '--filter', 'label=dev.atoma.compute.kind=worker']);
     const bypass = await docker(['exec', workerId, 'node', '-e',
       "const net=require('node:net');const s=net.connect(443,'1.1.1.1');s.on('connect',()=>{process.stdout.write('REACHED');s.destroy()});s.on('error',()=>process.stdout.write('DENIED'));s.setTimeout(2000,()=>{process.stdout.write('DENIED');s.destroy()})"]);

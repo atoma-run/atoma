@@ -133,8 +133,12 @@ identify the code executing `record_probe` on a customer device.
 `DesktopCompute` owns the desktop-only profile: immutable image identities,
 Linux named volumes, no host binds, non-root read-only containers, capped CPU,
 RAM/swap and processes, and network none by default. The headless client
-explicitly selects the existing per-run isolated egress proxy for package
-registries; `--no-network` disables it. Engine-confirmed boot reconciliation
+explicitly selects the existing per-run isolated egress proxy, in wildcard mode
+(`COMPUTE_EGRESS_ALLOWLIST`, 2026-11-26): the public Internet as on the hosted
+server, every private, loopback and link-local address still refused, so the
+device's own network stays out of reach. It passed no list before, and the
+registry default refused the source of three DVF runs for 189 minutes.
+`--no-network` disables it. Engine-confirmed boot reconciliation
 also removes that machine’s proxy and both networks. Tools receive only `current/`; the
 private control service alone mounts the snapshot spool. A drained worker cannot
 restart until explicit next-attempt activation. Close confirms engine absence
