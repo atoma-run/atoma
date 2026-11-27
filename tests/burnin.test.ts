@@ -276,7 +276,7 @@ describe('burnin provider attribution', () => {
       burninProviderInfo({
         ATOMA_MODEL_L1: 'sub:anthropic:haiku',
         ATOMA_MODEL_L2: 'sub:openai:gpt-5.6-luna',
-        ATOMA_MODEL_L3: 'sub:openai:gpt-5.6-sol',
+        ATOMA_MODEL_L3: 'sub:openai:gpt-5.6-terra',
       })
     ).toEqual({
       transports: ['claude-cli', 'codex-cli'],

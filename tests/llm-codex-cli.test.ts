@@ -853,8 +853,8 @@ describe('pricing — a Codex call must never read as free', () => {
   it('a codex-PINNED call is priced end to end on the served GPT slug, not the /opus/i row', async () => {
     // Full chain: MetricsLlmClient wraps the ROUTER (where observability
     // lives in production), the router strips the `sub:openai:` selector and
-    // dispatches, the transport resolves `claude-opus-5` → gpt-5.6-sol and
-    // reports it back.
+    // dispatches, the transport resolves `claude-opus-5` → the host's largest
+    // served slug (gpt-5.6-terra since 2026-11-27) and reports it back.
     const codexClient = new CodexCliLlmClient({ spawnFn: () => fakeChild({ lines: OK_LINES }) });
     const metrics = new InMemoryMetrics();
     const client = new MetricsLlmClient(
@@ -867,11 +867,11 @@ describe('pricing — a Codex call must never read as free', () => {
       userContent: 'u',
     });
     expect(metrics.events[0]!.model).toBe(CODEX_MODEL_FRONTIER);
-    // OK_LINES usage on the gpt-5.6-sol row ($4 in / $0.4 cached / $20 out,
+    // OK_LINES usage on the gpt-5.6-terra row ($2 in / $0.2 cached / $12 out,
     // catalogue 2026-09-27):
-    //   2856×4/1M + 6912×0.4/1M + 13×20/1M ≈ $0.0144488
+    //   2856×2/1M + 6912×0.2/1M + 13×12/1M ≈ $0.0072504
     // The opus fallback (Opus 5.5, $4 / $0.2 / $20) would read ≈ $0.0130664.
-    expect(metrics.summary().totals.costUsd).toBeCloseTo(0.0144488, 6);
+    expect(metrics.summary().totals.costUsd).toBeCloseTo(0.0072504, 6);
   });
 
   it('prices the GPT-5.6 slugs, with or without the selector', () => {

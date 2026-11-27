@@ -134,12 +134,15 @@ Loopback HTTP keeps its development cookie names and paths.
   Launch refreshes the inventory before spend. No static fallback or model
   substitution. Empty accounts start with the provider-reported default only.
 - The HOST's ChatGPT models are still a static list
-  (`CHATGPT_SUBSCRIPTION_MODELS`): Sol, Terra, Luna since 2026-09-28, when
-  `gpt-5.4-mini` was retired from it after every call came back
-  `request-rejected` on two accounts. A retired slug stays a readable pin —
-  read as null, the tier would fall silently to another payer — and is refused
-  as a new pin and before a launch spends. Discovering the host's list through
-  `model/list`, as for personal logins, is the open follow-up.
+  (`CHATGPT_SUBSCRIPTION_MODELS`): Terra, Luna since 2026-11-27, equal to what
+  the host, analyst and mender logins' `model/list` reported that day.
+  `gpt-5.4-mini` was retired on 2026-09-28 and `gpt-5.6-sol` on 2026-11-27,
+  each after calls came back `request-rejected` (run 645e404c failed its first
+  L3 plan because the list still admitted Sol). A retired slug stays a
+  readable pin — read as null, the tier would fall silently to another payer —
+  and is refused as a new pin and before a launch spends. Discovering the
+  host's list through `model/list`, as for personal logins, is the open
+  follow-up; until then, re-read that listing when a host call is rejected.
 - Personal Claude Code login is a PASTED TOKEN, in beta (owner decision
   2026-10-08, [docs/decisions/personal-claude-beta-2026-10-08.md](../../docs/decisions/personal-claude-beta-2026-10-08.md)):
   the member runs `claude setup-token` where Claude Code is signed in and

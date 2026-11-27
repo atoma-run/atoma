@@ -185,14 +185,18 @@ describe('the subscriptions are neighbours, not catalogue members', () => {
     ]);
     expect(CHATGPT_SUBSCRIPTION_FAMILY.models.every((model) => model.tiers?.includes(2))).toBe(true);
     expect(CHATGPT_SUBSCRIPTION_FAMILY.models.every((model) => model.tiers?.includes(3))).toBe(true);
-    // What ChatGPT serves today (2026-09-28): gpt-5.4-mini came back
-    // request-rejected on two accounts and is offered no longer, while a pin
-    // already stored on it stays a readable account selection.
-    expect(CHATGPT_SUBSCRIPTION_FAMILY.models.map((model) => model.id)).toEqual(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']);
+    // What the host login's model/list serves today (2026-11-27): gpt-5.4-mini
+    // (2026-09-28) and gpt-5.6-sol (2026-11-27) came back request-rejected and
+    // are offered no longer, while a pin already stored on either stays a
+    // readable account selection that a launch refuses before it spends.
+    expect(CHATGPT_SUBSCRIPTION_FAMILY.models.map((model) => model.id)).toEqual(['gpt-5.6-terra', 'gpt-5.6-luna']);
     expect(isAccountTierSelection('sub:openai:gpt-5.4-mini', 1)).toBe(true);
+    expect(isAccountTierSelection('sub:openai:gpt-5.6-sol', 3)).toBe(true);
     expect(() => assertServedHostChatGptModels(['sub:openai:gpt-5.4-mini'])).toThrow(/not served by the host subscription any more/);
+    expect(() => assertServedHostChatGptModels(['sub:openai:gpt-5.6-sol'])).toThrow(/not served by the host subscription any more/);
     expect(() => assertServedHostChatGptModels(['sub:openai:gpt-5.6-luna', 'own:openai:gpt-5.4-mini', 'api:openai:gpt-5.4-mini', null])).not.toThrow();
-    expect(chatGptSubscriptionModel('sub:openai:gpt-5.6-sol')).toBe('gpt-5.6-sol');
+    expect(chatGptSubscriptionModel('sub:openai:gpt-5.6-terra')).toBe('gpt-5.6-terra');
+    expect(chatGptSubscriptionModel('sub:openai:gpt-5.6-sol')).toBeNull();
     expect(transportOf(parseModelSelector('sub:openai:gpt-5.6-terra'))).toBe('codex-cli');
     expect(tierModelSelectionLabel('sub:openai:gpt-5.6-sol')).toBe(
       'ChatGPT (host subscription) — GPT-5.6 Sol'

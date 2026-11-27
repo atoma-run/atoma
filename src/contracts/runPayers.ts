@@ -42,12 +42,13 @@ export const HOST_SUBSCRIPTION_ALIASES = ['opus', 'sonnet', 'haiku'] as const;
 export type HostSubscriptionAlias = (typeof HOST_SUBSCRIPTION_ALIASES)[number];
 
 /**
- * Exact Codex slugs a ChatGPT subscription serves on all three tiers, frontier
- * first and smallest last (`CODEX_MODEL_*` read them by position).
+ * Exact Codex slugs the host's ChatGPT subscription serves on all three tiers,
+ * largest first. This is what the host login's app-server `model/list`
+ * reported on 2026-11-27 (codex-cli 0.153.4): `gpt-5.6-terra` (its default)
+ * and `gpt-5.6-luna`, nothing else visible. Keep it equal to that listing.
  * L1 uses Atoma's host-side tool loop through ToolSandbox.
  */
 export const CHATGPT_SUBSCRIPTION_MODELS = [
-  'gpt-5.6-sol',
   'gpt-5.6-terra',
   'gpt-5.6-luna',
 ] as const;
@@ -57,9 +58,11 @@ export const CHATGPT_SUBSCRIPTION_MODELS = [
  * one stays readable, and is refused before a run spends anything: every call
  * to `gpt-5.4-mini` came back `request-rejected` on two accounts (a personal
  * login on 2026-09-21, the host's on 2026-09-28), so a run pinned to it failed
- * a minute in, after its planner had already been paid for.
+ * a minute in, after its planner had already been paid for. `gpt-5.6-sol` left
+ * the host's `model/list` by 2026-11-27, when run 645e404c's first L3 plan
+ * call came back `request-rejected` after this list had admitted it.
  */
-export const RETIRED_CHATGPT_SUBSCRIPTION_MODELS = ['gpt-5.4-mini'] as const;
+export const RETIRED_CHATGPT_SUBSCRIPTION_MODELS = ['gpt-5.4-mini', 'gpt-5.6-sol'] as const;
 
 /**
  * Refuse a host ChatGPT pin the subscription no longer serves, with the words

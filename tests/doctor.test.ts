@@ -514,7 +514,7 @@ describe('atoma doctor', () => {
       env: {
         ATOMA_MODEL_L1: 'sub:anthropic:haiku',
         ATOMA_MODEL_L2: 'api:zai:glm-5',
-        ATOMA_MODEL_L3: 'sub:openai:gpt-5.6-sol',
+        ATOMA_MODEL_L3: 'sub:openai:gpt-5.6-terra',
         ZAI_API_KEY: 'configured',
       },
       dependencies: dependencies({ runCommand }),
@@ -559,7 +559,7 @@ describe('atoma doctor', () => {
       mode: { container: false, egress: false },
       env: {
         ...CLAUDE_CLI_PINS,
-        ATOMA_MODEL_L1: 'sub:openai:gpt-5.6-sol',
+        ATOMA_MODEL_L1: 'sub:openai:gpt-5.6-terra',
       },
       dependencies: dependencies(),
     });

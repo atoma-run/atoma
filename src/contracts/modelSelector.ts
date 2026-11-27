@@ -111,7 +111,7 @@ export class ModelSelectorError extends Error {
 
 export const MODEL_SELECTOR_GRAMMAR =
   `<api|sub|own>:<${MODEL_SELECTOR_VENDORS.join('|')}>:<model>, for example api:anthropic:claude-sonnet-5, ` +
-  'sub:anthropic:sonnet or sub:openai:gpt-5.6-sol';
+  'sub:anthropic:sonnet or sub:openai:gpt-5.6-terra';
 
 function isMode(value: string): value is ModelSelectorMode {
   return (MODEL_SELECTOR_MODES as readonly string[]).includes(value);

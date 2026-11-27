@@ -10,7 +10,7 @@ Keep these in `/home/atoma/config/atoma.env`:
 
 ```dotenv
 ATOMA_VIZ_ANALYST=1
-ATOMA_ANALYST_MODEL=sub:openai:gpt-5.6-sol
+ATOMA_ANALYST_MODEL=sub:openai:gpt-5.6-terra
 ATOMA_ANALYST_CODEX_HOME=/home/atoma/state/codex/analyst
 ATOMA_SUPERVISOR_CMD_CODEX=/home/atoma/state/.local/bin/codex
 ATOMA_SUPERVISOR_DIR=/home/atoma/state/supervisor

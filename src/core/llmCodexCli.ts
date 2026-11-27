@@ -40,7 +40,7 @@ process.on('exit', cleanupCodexJails);
  * CODEX_HOME — typically a ChatGPT Plus/Pro subscription. Reached through a
  * tier pin's provider prefix:
  *
- *   ATOMA_MODEL_L3=sub:openai:gpt-5.6-sol
+ *   ATOMA_MODEL_L3=sub:openai:gpt-5.6-terra
  *
  * WHY A SUBPROCESS AND NOT `@openai/codex-sdk`. The CLI exposes MORE
  * isolation than the SDK's ThreadOptions does — `--ephemeral`,
@@ -72,10 +72,14 @@ process.on('exit', cleanupCodexJails);
  *   - 13.7s for an L3 plan, comparable to the claude-cli transport.
  */
 
-/** Codex model slugs a ChatGPT subscription actually serves (2026-08-11). */
+/**
+ * The served slug each Anthropic-shaped power tier maps onto. Named, not read
+ * by position: since 2026-11-27 the host serves two models, so the frontier
+ * and the mid tier are both its largest one.
+ */
 export const CODEX_MODEL_FRONTIER = CHATGPT_SUBSCRIPTION_MODELS[0];
-export const CODEX_MODEL_MID = CHATGPT_SUBSCRIPTION_MODELS[1];
-export const CODEX_MODEL_SMALL = CHATGPT_SUBSCRIPTION_MODELS[2];
+export const CODEX_MODEL_MID = CHATGPT_SUBSCRIPTION_MODELS[0];
+export const CODEX_MODEL_SMALL = CHATGPT_SUBSCRIPTION_MODELS[1];
 
 /**
  * Codex capabilities removed from Atoma's L2/L3 text-completion transport.
