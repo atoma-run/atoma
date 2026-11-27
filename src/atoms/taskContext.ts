@@ -6,6 +6,7 @@ import { READ_ONLY_TASK_LINE } from '../contracts/readOnlyPhase.js';
 import { PROBE_REVIEW_GUIDANCE } from '../contracts/probeManifest.js';
 import { workspacePreparationSchema, type PackageRoot } from '../contracts/workspacePreparation.js';
 import { SHELL_TIMEOUT_MAX_MS } from '../contracts/commandTimeouts.js';
+import { WORKSPACE_LIMITS } from '../contracts/workspaceLimits.js';
 import { stripLiteralContractBlock } from './prompts.js';
 import { createHash } from 'node:crypto';
 import type { PlanBase } from '../core/atom.js';
@@ -46,6 +47,26 @@ export const APPLICATION_TYPESCRIPT_GUIDANCE = [
   'Use the versioned Atoma application skeleton: strict TypeScript, ESLint with typescript-eslint, Vitest, and Vite for browser assets. A shell child can generate it with run_shell command:"atoma-scaffold", args:["web"|"node"|"fullstack", "empty-directory"]. For existing apps reuse the working configuration; generate a reference in .atoma-skeleton only when the current task needs configuration adaptation. Keep a lockfile and dev/typecheck/lint/test/build/start/check scripts covering all application source and tests. Do not hide errors with any, ts-ignore, ts-nocheck, blanket assertions, disabled checks or excluded source.',
   'Delegate check and build to a child with run_shell before browser verification. Final application acceptance requires observed successful npm run check and npm run build on the final source, verified config/command coverage and functional checks of the built app; scaffold example tests, transpilation or Node type stripping alone are not proof. Judge delegated phases only on their assigned work. Reusable prompts and recipes do not override this policy.',
 ].join('\n');
+
+/**
+ * The host's delivery bound, stated as a fact to every tool-mode planner,
+ * executor and reviewer (runtime text, like the TypeScript rule above). The
+ * finished workspace is inventoried file by file and ONE file over
+ * `WORKSPACE_LIMITS.maxFileBytes` refuses the whole delivery, after every
+ * phase and acceptance has been paid for: run c71c47bd (2026-11-27) embedded
+ * two DVF extracts in its Vite bundle, passed its build, and ended on
+ * `artifact exceeds 10485760 bytes: dist/assets/index-*.js` with nothing
+ * saved. The cap stays a refusal (the preview serves `dist/`, so dropping
+ * the file would serve half an application); what was missing is that no
+ * model was told it exists. A fact, never a gate: it names no file kind.
+ */
+export const DELIVERED_FILE_SIZE_GUIDANCE =
+  `Delivery saves every workspace file outside .git, node_modules and .atoma* paths, generated files such as dist/ included, ` +
+  `and refuses the whole delivery when any one file exceeds ${WORKSPACE_LIMITS.maxFileBytes} bytes ` +
+  `(${WORKSPACE_LIMITS.maxFileBytes / (1024 * 1024)} MiB) or all of them together exceed ` +
+  `${WORKSPACE_LIMITS.maxTotalBytes / (1024 * 1024)} MiB. Keep every file you produce under that bound: ` +
+  `aggregate, split or reduce data rather than embedding a large dataset in one module, bundle or data file. ` +
+  `Large intermediate inputs (downloads, raw data) belong under .atoma-scratch/, which is never saved.`;
 
 /** The task-context line carrying a parent-owned suite; the calibration reader recognises it. */
 export const PARENT_SUITE_CONTEXT_PREFIX = 'Parent-owned acceptance suite (requirements and assertions; host-run after this task returns; not this task\'s to repair, extend or replace, and cannot be replaced by child files): ';
@@ -398,6 +419,7 @@ export function taskContextLines(task: Task, options: {
     // `delegatedTaskContext` forces reasoning on every descendant of a
     // reasoning parent (review 2026-10-16, group F).
     task.executionMode === 'reasoning' ? '' : APPLICATION_TYPESCRIPT_GUIDANCE,
+    task.executionMode === 'reasoning' ? '' : DELIVERED_FILE_SIZE_GUIDANCE,
     task.executionMode === 'reasoning' ? '' : VERIFICATION_REUSE_GUIDANCE,
     task.executionMode === 'reasoning' ? '' : FILE_FINGERPRINT_GUIDANCE,
     task.executionMode === 'reasoning' ? '' : WIT_HANDOFF_GUIDANCE,

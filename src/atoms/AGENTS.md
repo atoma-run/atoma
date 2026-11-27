@@ -420,7 +420,7 @@ load-bearing.
   [Decision and review](../../docs/decisions/typescript-applications-2026-10-16.md).
   Apps also adopt the [versioned application skeleton](../../docs/decisions/application-skeleton-2026-10-16.md):
   ESLint/typescript-eslint, Vitest, Vite for browser assets, and uniform scripts.
-  Example tests prove the skeleton only; product behavior still needs evidence.
+  Example tests prove the skeleton only; product behavior still needs evidence. `DELIVERED_FILE_SIZE_GUIDANCE` (same readers) states `WORKSPACE_LIMITS` as a fact, never a gate: run c71c47bd's 10 MiB bundle refused its paid delivery unannounced.
 
 - Browser executors and reviewers share `WEB_DELIVERY_GUIDANCE`: user-entered
   plain text stays data in DOM attributes too, and documented launch modes must
