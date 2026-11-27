@@ -9,7 +9,7 @@ import { archiveToolEvidence, readArchivedToolEvidence } from '../core/evidenceA
 import { createAttestationLog } from '../core/attestation.js';
 import { reviewContextBudget, estimateTextTokens } from '../core/contextBudget.js';
 import type { LlmCompletionRequest, LlmCompletionResponse, Result, RunContext } from '../core/types.js';
-import { extractJsonEx, findAllJsonObjects, hasWrappedEvidenceReadRequest } from './json.js';
+import { extractJsonEx, findAllJsonObjects, hasWrappedEvidenceReadRequest, unwrapSoleFence } from './json.js';
 
 /** A finite review protocol, independent of the child's execution/retry budgets. */
 export const MAX_EVIDENCE_READ_ROUNDS = 8;
@@ -225,7 +225,7 @@ export async function completeEvidenceReview(args: {
     // Mixed, nested, invalid and unfinished requests still fail closed.
     if (response.stopReason === 'end_turn' && hasWrappedEvidenceReadRequest(response.text)) {
       let exact = false;
-      try { JSON.parse(response.text); exact = true; } catch { /* wrapped response */ }
+      try { JSON.parse(unwrapSoleFence(response.text)); exact = true; } catch { /* wrapped response */ }
       if (!exact && !protocolCorrectionSpent) {
         protocolCorrectionSpent = true;
         args.ctx.signal?.throwIfAborted();
@@ -236,12 +236,12 @@ export async function completeEvidenceReview(args: {
         if (count(correction) + count(args.request.systemPrompt) > budget.inputTokens) throw new EvidenceReviewError('Evidence protocol correction exceeds the model context budget');
         response = await args.ctx.llm.complete({ ...args.request, role: 'verdict-repair', userContent: correction });
         if (response.stopReason !== 'end_turn' || !evidenceReadRequestSchema.safeParse((() => {
-          try { return JSON.parse(response.text) as unknown; } catch { return null; }
+          try { return JSON.parse(unwrapSoleFence(response.text)) as unknown; } catch { return null; }
         })()).success) throw new EvidenceReviewError('Evidence reading protocol correction did not return an exact reading request');
       }
     }
     let decoded: unknown, exact = true;
-    try { decoded = JSON.parse(response.text); } catch {
+    try { decoded = JSON.parse(unwrapSoleFence(response.text)); } catch {
       exact = false;
       for (const candidate of findAllJsonObjects(response.text)) {
         if (isEvidenceReadingResponse(candidate)) {

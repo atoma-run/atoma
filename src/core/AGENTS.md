@@ -186,7 +186,9 @@ Neighbours:
 
 - Review input capacity is model/transport data (`modelCatalog.json`'s
   `contextWindows`), with exact-selector `ATOMA_MODEL_CONTEXT_WINDOWS` JSON
-  overrides and Ollama's configured request window. Unknown capacity is marked
+  overrides and Ollama's configured request window. A model no entry names (the
+  Claude CLI's `haiku`/`sonnet`/`opus`) takes its family fallback's window, as its
+  price does: run 46b59e8e reviewed on the 32k compatibility window and faulted. Unknown capacity is marked
   unverified, never advertised as a provider guarantee. `contextBudget.ts`
   reserves the requested output and 15% tokenizer/protocol headroom, then counts
   visible text with local o200k_base BPE (js-tiktoken); other tokenizers may differ.

@@ -49,7 +49,16 @@ export function modelContextWindow(model: string, env: NodeJS.ProcessEnv = proce
       const tokens = ollamaContextLength(env['OLLAMA_CONTEXT_LENGTH'] ?? '');
       return { tokens, source: 'configured Ollama request context', verified: true };
     }
-    const entry = MODEL_CATALOG.vendors[selector.vendor].models.find(value => value.id === selector.model || value.aliases?.includes(selector.model));
+    const vendor = MODEL_CATALOG.vendors[selector.vendor];
+    // A model the catalogue does not name resolves through the vendor's family
+    // fallbacks, as its price does: the Claude CLI's subscription aliases
+    // (`own:anthropic:haiku`) name no entry. Without this, every Claude
+    // subscription review ran on the 32k compatibility window, and run
+    // 46b59e8e's result review could not fit its own protocol (2026-11-27).
+    // A model the catalogue names keeps its own capacity, a missing one included.
+    const entry = vendor.models.find(value => value.id === selector.model || value.aliases?.includes(selector.model))
+      ?? (vendor.fallbacks ?? []).flatMap(fallback => new RegExp(fallback.pattern, 'i').test(selector.model)
+        ? vendor.models.filter(value => value.id === fallback.priceOf) : [])[0];
     const tokens = selector.mode === 'api' ? entry?.contextWindows?.api : entry?.contextWindows?.subscription;
     if (tokens) return { tokens, source: entry!.contextWindows!.source, verified: true };
   } catch {

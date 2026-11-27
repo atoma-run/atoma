@@ -99,6 +99,37 @@ describe('validator reading protocol', () => {
     expect(ctx.llm.calls).toHaveLength(2);
   });
 
+  it('reads a request that is one json fence and nothing else, on the first round and as the correction (run 46b59e8e)', async () => {
+    const fenced = (value: unknown) => ({ ...reply(null), text: '```json\n' + JSON.stringify(value, null, 2) + '\n```' });
+    for (const viaCorrection of [false, true]) {
+      const ctx = { ...makeCtx(), attestations: createAttestationLog() };
+      archiveHostFileRead(ctx, 'tests/search.ts', { content: 'FENCED_READ_RETURNED_THIS' });
+      const id = ctx.attestations.forBranch('host-review:root:1')[0]!.eventId;
+      const request = { readEvidence: [{ eventId: id, offset: 0, length: 500 }] };
+      if (viaCorrection) ctx.llm.enqueue({ ...reply(null), text: 'I will read it: ' + JSON.stringify(request) });
+      ctx.llm.enqueue(call => {
+        if (viaCorrection) expect(call.role).toBe('verdict-repair');
+        return fenced(request);
+      });
+      ctx.llm.enqueue(call => {
+        expect(call.userContent).toContain('FENCED_READ_RETURNED_THIS');
+        return reply({ approved: true, reasoning: 'Read.' });
+      });
+      await expect(review(ctx, [])).resolves.toMatchObject({ approved: true });
+      expect(ctx.llm.calls).toHaveLength(viaCorrection ? 3 : 2);
+    }
+  });
+
+  it('still refuses a fenced request with prose outside the fence, or two fences', async () => {
+    const body = JSON.stringify({ listEvidence: { offset: 0 } });
+    for (const text of ['Reading:\n```json\n' + body + '\n```', '```json\n' + body + '\n```\n```json\n' + body + '\n```']) {
+      const ctx = makeCtx();
+      ctx.llm.enqueue({ ...reply(null), text });
+      ctx.llm.enqueue({ ...reply(null), text });
+      await expect(review(ctx, [])).rejects.toThrow(/protocol correction|exact, unrepaired JSON/);
+    }
+  });
+
   it('permits only one protocol correction across all reading rounds and propagates cancellation', async () => {
     const text = 'Read this: {"listEvidence":{"offset":0}}';
     const ctx = makeCtx();
@@ -401,6 +432,12 @@ describe('model context budgets', () => {
   it('uses transport-specific verified capabilities and reserves prompt, response and headroom', () => {
     expect(modelContextWindow('own:openai:gpt-5.6-luna')).toMatchObject({ tokens: 272000, verified: true });
     expect(modelContextWindow('api:openai:gpt-5.6-luna').verified).toBe(false);
+    // Claude CLI aliases name no catalogue entry: they resolve through the family
+    // fallback, as their price does. Run 46b59e8e reviewed on 32k and faulted.
+    for (const alias of ['own:anthropic:haiku', 'sub:anthropic:sonnet', 'own:anthropic:opus']) {
+      expect(modelContextWindow(alias, {})).toMatchObject({ tokens: 200000, verified: true });
+    }
+    expect(reviewContextBudget('own:anthropic:haiku', 'system', 'x '.repeat(20_000), 8000, {}).evidenceTokens).toBeGreaterThan(100_000);
     expect(modelContextWindow('api:ollama:custom', { OLLAMA_CONTEXT_LENGTH: '4096' }).tokens).toBe(32768);
     expect(modelContextWindow('api:ollama:custom', { OLLAMA_CONTEXT_LENGTH: 'invalid' }).tokens).toBe(32768);
     vi.stubEnv('ATOMA_MODEL_CONTEXT_WINDOWS', JSON.stringify({ small: 10000, large: 20000 }));

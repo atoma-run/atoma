@@ -11,6 +11,19 @@ import type { Plan, SubtaskSpec } from '../core/types.js';
 import type { PlanBase } from '../core/atom.js';
 import { evidenceReadRequestSchema } from '../contracts/evidenceReading.js';
 
+/**
+ * The JSON text of a reply that is ONE Markdown code fence and nothing else
+ * (an optional `json` tag; whitespace around it), or the reply unchanged.
+ * Presentation, not repair: the body must still parse exactly as written, and
+ * prose before or after the fence leaves the reply as it was. Run 46b59e8e's
+ * Haiku re-emitted a schema-valid reading request inside a fence after being
+ * told "no fences", and the review failed closed on it (2026-11-27).
+ */
+export function unwrapSoleFence(text: string): string {
+  const match = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*```$/i.exec(text.trim());
+  return match && !match[1]!.includes('```') ? match[1]! : text;
+}
+
 /** Diagnose a sole valid reading envelope wrapped in prose; never execute the extracted value. */
 export function hasWrappedEvidenceReadRequest(text: string): boolean {
   const candidates = findAllJsonObjects(text);
