@@ -78,6 +78,16 @@ export interface PreparedProjectRetrievalCorpus {
   readonly passages: readonly Readonly<ProjectRetrievalPassage>[];
 }
 
+/**
+ * A plain document is admitted as text when it holds no NUL and round-trips
+ * UTF-8 exactly. Run ac07b4b9 (2026-11-27) never started: its seed's
+ * scripts/extract-dvf.ts carried a raw NUL inside a string literal, and the
+ * launch capture refused the whole run over one document of its corpus.
+ */
+export function isAdmittedPlainText(bytes: Buffer): boolean {
+  return !bytes.includes(0) && Buffer.from(bytes.toString('utf8'), 'utf8').equals(bytes);
+}
+
 /** Source roots must be host-owned immutable snapshots, never a live worker workspace. */
 export async function captureProjectDocument(root: string, document: ProjectRetrievalManifest['documents'][number],
   context: ProjectRetrievalCallContext): Promise<Buffer> {
@@ -105,10 +115,12 @@ export async function captureProjectDocument(root: string, document: ProjectRetr
     }
     const after = await handle.stat();
     const captured = bytes.subarray(0, count);
+    // Integrity only: these are the bytes the manifest names. Whether a plain
+    // document is UTF-8 text is decided by ingestion (`isAdmittedPlainText`),
+    // which omits it from a corpus being decided rather than failing the run.
     if (count !== document.bytes || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs ||
-        await realpath(file) !== canonical || projectRetrievalHash(captured) !== document.sha256 ||
-        (isPlainProjectDocument(document.path) && (captured.includes(0) || !Buffer.from(captured.toString('utf8'), 'utf8').equals(captured)))) {
-      throw new Error('document changed or is not the admitted UTF-8 source');
+        await realpath(file) !== canonical || projectRetrievalHash(captured) !== document.sha256) {
+      throw new Error('document changed');
     }
     return captured;
   } finally { await handle.close(); }
@@ -233,8 +245,15 @@ export async function prepareProjectRetrievalSources(input: unknown, context: Pr
     for (const document of manifest.documents) {
       assertRetrievalTime(context);
       const bytes = await read(document);
-      if (bytes.length !== document.bytes || projectRetrievalHash(bytes) !== document.sha256 ||
-          (isPlainProjectDocument(document.path) && (bytes.includes(0) || !Buffer.from(bytes.toString('utf8')).equals(bytes)))) throw new Error('source mismatch');
+      if (bytes.length !== document.bytes || projectRetrievalHash(bytes) !== document.sha256) throw new Error('source mismatch');
+      if (isPlainProjectDocument(document.path) && !isAdmittedPlainText(bytes)) {
+        // The manifest's own bytes, but not text a passage can quote: a NUL or
+        // invalid UTF-8. Omitted like an unextractable binary when the corpus is
+        // being decided; a receipt that already promised it stays strict.
+        if (!options.omitUnextractable) throw new Error('source mismatch');
+        unextractable.add(document.path);
+        continue;
+      }
       if (isPlainProjectDocument(document.path)) {
         const analysis = isProjectCode(document.path) ? analyseProjectCode(document.path, bytes.toString('utf8'), manifest.documents.map(d => d.path)) : undefined;
         if (analysis) analyses.set(document.path, analysis);

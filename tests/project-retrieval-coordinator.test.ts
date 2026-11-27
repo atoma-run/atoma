@@ -208,6 +208,40 @@ describe('coordinator retrieval admission before spawn', () => {
     expect(readFileSync(join(receipt.sourceRoot, 'reading-edition.pdf'))).toEqual(broken);
   }, 60_000);
 
+  it('launches a run whose seed holds source with a raw NUL, omitting only that document (ac07b4b9)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'atoma-retrieval-nul-source-')); roots.push(root);
+    const f = projectRetrievalFixture(root);
+    // Run a820ff79 wrote this into scripts/extract-dvf.ts: a real NUL inside a string literal.
+    const withNul = "export const empty = (text: string) => text.includes('\0');\n";
+    f.makeRun({ 'README.md': 'Pocket atlas of misplaced shadows.\n', 'scripts/extract.ts': withNul });
+    let result: ProjectRetrievalResponse | undefined;
+    const driver: ProjectRunDriver = vi.fn(async options => {
+      const env = options.env!;
+      const prepared = openProjectRunHaystack({ dbPath: env['ATOMA_DB_PATH']!, runId: env['ATOMA_RUN_ID']!,
+        workspacePath: env['ATOMA_BUILD_WORKSPACE']!, skillsPath: env['ATOMA_SKILLS_DIR']!, runsPath: env['ATOMA_RUNS_DIR']! }, readHaystackLaunch(env));
+      await prepared.prepare(retrievalContext());
+      const tool = createProjectRetrievalTool(prepared.binding, retrievalContext());
+      try { result = await tool.execute({ query: 'misplaced shadows' }); }
+      finally { await tool.close(); }
+      return '--- run failed --- boundary test ends before delivery';
+    });
+    const coordinator = new ProjectRunCoordinator({ store: f.projects, dbPath: f.dbPath, projectsRoot: root,
+      hostEnv: { [HAYSTACK_LAUNCH_ENV]: JSON.stringify(haystackTestRuntime(root)), ATOMA_MODEL_L1: 'api:ollama:test', ATOMA_MODEL_L2: 'api:ollama:test', ATOMA_MODEL_L3: 'api:ollama:test',
+        OLLAMA_BASE_URL: 'http://127.0.0.1:1' }, driver,
+      acquireLease: async () => ({ path: 'test', attachChild: vi.fn(), release: vi.fn() }) });
+    const run = await coordinator.start({ orgId: f.viewer.orgId, principalId: f.viewer.principalId,
+      projectId: f.project.projectId, request: { idempotencyKey: 'nul-source', goal: 'Wire the extracts.' } });
+    await coordinator.waitForIdle();
+    expect(driver).toHaveBeenCalledOnce();
+    expect(result).toMatchObject({ ok: true, coverage: { eligible: 2, indexed: 1, omitted: 1 },
+      passages: [expect.objectContaining({ path: 'README.md' })] });
+    const row = openStoreHandle(f.dbPath, '').prepare('SELECT receipt_json FROM project_retrieval_launches WHERE run_id = ?')
+      .get(run.projectRunId) as { receipt_json: string };
+    const receipt = projectRetrievalLaunchSchema.parse(JSON.parse(row.receipt_json));
+    expect(receipt.manifest.documents.map(d => d.path)).toEqual(['README.md']);
+    expect(readFileSync(join(receipt.sourceRoot, 'scripts/extract.ts'), 'utf8')).toBe(withNul);
+  }, 60_000);
+
   it('records the cause of a failed preparation in the run log the runner never wrote', async () => {
     const root = mkdtempSync(join(tmpdir(), 'atoma-retrieval-cause-')); roots.push(root);
     const f = projectRetrievalFixture(root);
