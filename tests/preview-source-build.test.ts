@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { AddressInfo } from 'node:net';
-import { hasVitePreviewSource } from '../src/preview/sourceBuild.js';
+import { hasVitePreviewSource, rootPageNeedsBuild } from '../src/preview/sourceBuild.js';
 import { createComputeStaticServer } from '../src/preview/computeStatic.js';
 import { copyComputePreview } from '../src/preview/computeCopy.js';
 import { artifactManifestHash, buildWorkspaceArtifactManifest } from '../src/projects/artifacts.js';
@@ -68,6 +68,21 @@ it('fails closed on absent dependencies or a failed build, with no raw source fa
   writeFileSync(join(broken.source, 'src/main.ts'), 'this is not valid TypeScript');
   await expect(createComputeStaticServer({ workspace: broken.source, buildRoot: broken.output, buildVite: true })).rejects.toThrow();
   expect(readFileSync(join(broken.source, 'src/main.ts'), 'utf8')).toBe('this is not valid TypeScript');
+});
+it('builds a static root page only when a browser could not run its module script as served', () => {
+  const f = fixture(); expect(rootPageNeedsBuild(f.source)).toBe(true);
+  const page = (html: string) => { writeFileSync(join(f.source, 'index.html'), html); return rootPageNeedsBuild(f.source); };
+  // DVF 7e71b8a6's page, and the other spellings of a module a browser refuses.
+  expect(page('<!doctype html><main id="app"></main>\n    <script type="module" src="/src/main.ts"></script>')).toBe(true);
+  expect(page("<script src='./src/App.tsx?v=1' type='module'></script>")).toBe(true);
+  expect(page('<script type=module src=/src/main.jsx></script>')).toBe(true);
+  expect(page('<script type="module" src="/src/main.vue#x"></script>')).toBe(true);
+  // A page served as is works: plain modules, classic scripts, inline code, no script.
+  expect(page('<script type="module" src="/main.js"></script>')).toBe(false);
+  expect(page('<script src="/src/legacy.ts"></script>')).toBe(false);
+  expect(page('<script type="module">import "/src/main.ts"</script>')).toBe(false);
+  expect(page('<p>static</p>')).toBe(false);
+  rmSync(join(f.source, 'index.html')); expect(rootPageNeedsBuild(f.source)).toBe(false);
 });
 it('recognizes supported build inputs without executing package scripts or guessing from a README', () => {
   const f = fixture(); expect(hasVitePreviewSource(f.source)).toBe(true);

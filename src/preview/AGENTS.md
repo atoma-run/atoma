@@ -182,7 +182,14 @@ very directory EMPTY before copying from it.
 The delivery descriptor remains an immutable observation, not a permanent
 limit on later runtime capabilities. For a delivered Compute workspace with
 `index.html` and a declared Vite dependency, the manager may offer a Vite
-build for a delivery classified as not runnable or unsupported. Eligibility
+build for a delivery classified as not runnable or unsupported. A `static`
+one with no build root is built only when its root page loads a module no
+browser runs as served (`rootPageNeedsBuild`: `.ts`, `.tsx`, `.jsx`, `.vue`…):
+DVF 7e71b8a6 and 04abca98 (2026-11-28) loaded `/src/main.ts` and previewed
+blank. Every other static page keeps the direct path, because a build drops
+classic scripts, other pages and runtime data a working page serves (review
+2026-11-28). This reads the page to choose serving over building, never to
+classify or pick a root, which 2026-11-20 refused. Eligibility
 is cached by immutable run identity (bounded to 256 entries). No descriptor,
 artifact manifest or delivered file is rewritten. Hosted sources keep their
 existing classification; this capability requires the original Compute device.

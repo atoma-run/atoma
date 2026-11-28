@@ -726,3 +726,46 @@ it('offers a new isolated build capability for a historical Compute source deliv
   // Hosted previews cannot acquire the Compute-only preparation capability.
   expect(manager().manager.status(orgId, projectId, projectRunId)).toMatchObject({ availability: 'unavailable', reason: 'not-runnable' });
 });
+
+it('builds a Compute Vite source its device classified static, and serves any other static page directly', async () => {
+  // DVF 7e71b8a6 and 04abca98 (2026-11-28): the source `index.html` made the
+  // delivery `static`; served as is it loaded `/src/main.ts` and showed a blank page.
+  db.prepare('DELETE FROM project_run_preview_descriptors WHERE project_run_id = ?').run(projectRunId);
+  writeFileSync(join(deliveredWorkspace, 'index.html'), '<main id="app"></main><script type="module" src="/src/main.ts"></script>');
+  writeFileSync(join(deliveredWorkspace, 'package.json'), '{"devDependencies":{"vite":"8.2.1"}}');
+  const recorded = recordDeliveredPreview(previews, { orgId, projectId, projectRunId, workspaceRoot: deliveredWorkspace,
+    remoteClassification: { availability: 'available', kind: 'static', entry: null, unavailableReason: null } });
+  const opened = async () => {
+    const starts: Array<Record<string, unknown>> = [];
+    const { claims, routes } = manager();
+    const previewManager = new PreviewManager({ store: previews, claims, routes, config,
+      launcher: new WorkspaceOnlyLauncher(join(root, 'copies')), workspaceOf: () => deliveredWorkspace, probe: async () => true,
+      remote: { owns: (o, p, r) => o === orgId && p === projectId && r === projectRunId,
+        start: async input => {
+          starts.push({ ...input });
+          return { imageDigest: 'sha256:' + 'a'.repeat(64), runtime: 'runc', connect: async () => { throw new Error('Not used'); } };
+        }, stop: async () => {} } });
+    expect(previewManager.status(orgId, projectId, projectRunId)).toMatchObject({ availability: 'available', kind: 'static' });
+    await previewManager.open({ orgId, projectId, projectRunId, opener: { principalId, sessionId: null } });
+    await previewManager.stop(orgId, projectId, projectRunId, 'manual');
+    return starts;
+  };
+  const built = await opened();
+  expect(built).toHaveLength(1);
+  expect(built[0]).toMatchObject({ build: 'vite', classification: { availability: 'available', kind: 'static', entry: null } });
+  expect(previews.getDescriptor(orgId, projectRunId)).toEqual(recorded);
+  // A page the direct path can serve keeps it, Vite declared or not: plain
+  // JavaScript modules, classic scripts (a build would drop them), or no Vite.
+  const directly = async (page: string, pkg: string) => {
+    writeFileSync(join(deliveredWorkspace, 'index.html'), page);
+    writeFileSync(join(deliveredWorkspace, 'package.json'), pkg);
+    const starts = await opened();
+    expect(starts).toHaveLength(1);
+    expect(starts[0]).toMatchObject({ classification: { availability: 'available', kind: 'static' } });
+    return starts[0];
+  };
+  const vite = '{"devDependencies":{"vite":"8.2.1"}}';
+  expect(await directly('<script type="module" src="/main.js"></script>', vite)).not.toHaveProperty('build');
+  expect(await directly('<script src="app.js"></script><a href="about.html">about</a>', vite)).not.toHaveProperty('build');
+  expect(await directly('<script type="module" src="/src/main.ts"></script>', '{"devDependencies":{"eslint":"10.9.1"}}')).not.toHaveProperty('build');
+});

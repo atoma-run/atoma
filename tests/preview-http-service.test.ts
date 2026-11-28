@@ -878,12 +878,13 @@ describe('explicit terminal preview', () => {
   });
 });
 
-it('uses the remote preview destination without touching the host workspace and revokes its grant on disconnect', async () => {
+it('uses the remote preview destination without copying the host workspace and revokes its grant on disconnect', async () => {
   const a = actor('remote-preview'), projectId = seedProject(a, 'remote-preview');
   const runId = seedDeliveredRun(a, projectId, 'remote-preview');
   const launcher = new WorkspaceOnlyLauncher(join(root, 'remote-copies'));
   const hostCopy = vi.spyOn(launcher, 'createWorkspace');
-  const workspaceOf = vi.fn(() => { throw new Error('Remote workspace must never be read on the host'); });
+  // The host copy is read for Vite build eligibility only; an unreadable one keeps the direct path.
+  const workspaceOf = vi.fn(() => { throw new Error('Remote workspace unreadable on the host'); });
   const routes = new PreviewRouteTable();
   const remote = { owns: () => true, start: vi.fn(async () => ({ imageDigest: `sha256:${'a'.repeat(64)}`, runtime: 'runc' as const,
     connect: async () => { throw new Error('Device disconnected'); } })), stop: vi.fn(async () => { throw new Error('No stop acknowledgement'); }) };
@@ -895,7 +896,8 @@ it('uses the remote preview destination without touching the host workspace and 
   expect(redeemed.ok).toBe(true);
   expect(opened.body.summary.state).toBe('ready');
   expect(remote.start).toHaveBeenCalledWith(expect.objectContaining({ source: 'delivered', runId, generation }));
-  expect(hostCopy).not.toHaveBeenCalled(); expect(workspaceOf).not.toHaveBeenCalled();
+  expect(hostCopy).not.toHaveBeenCalled();
+  expect(remote.start).toHaveBeenCalledWith(expect.not.objectContaining({ build: expect.anything() }));
   manager.remoteUnavailable(a.orgId, runId, generation);
   expect(previews.getInstance(a.orgId, runId)).toMatchObject({ state: 'failed', errorCode: 'runtime-unavailable' });
   if (redeemed.ok) expect(claims.authorise(redeemed.token, { orgId: a.orgId, projectRunId: runId, generation, host: url.hostname })).toBeNull();
@@ -912,9 +914,11 @@ it('persists an actionable Compute failure through the real executor preview and
   const devices = new ComputeDeviceStore(db, { appVersions: new Set(), imageDigests: new Set() });
   vi.spyOn(devices, 'currentSession').mockReturnValue(undefined);
   const remote = new ExecutorComputePreview(join(root, 'unused.db'), projects, devices);
-  const hostCopy = vi.fn(() => { throw new Error('Must not copy a remote workspace'); });
-  const manager = new PreviewManager({ store: previews, launcher: new WorkspaceOnlyLauncher(join(root, 'copies')),
-    routes: new PreviewRouteTable(), claims, config, workspaceOf: hostCopy, remote, probe: async () => { throw new Error('No host probe'); } });
+  const launcher = new WorkspaceOnlyLauncher(join(root, 'copies'));
+  const hostCopy = vi.spyOn(launcher, 'createWorkspace');
+  const manager = new PreviewManager({ store: previews, launcher,
+    routes: new PreviewRouteTable(), claims, config, workspaceOf: () => { throw new Error('Remote workspace unreadable on the host'); },
+    remote, probe: async () => { throw new Error('No host probe'); } });
   const service = new PreviewHttpService({ manager, store: previews, projects });
   await expect(service.open(viewerFor(a), projectId, runId, { mode: 'app' })).rejects.toMatchObject({
     status: 409, message: expect.stringContaining('Reconnect Atoma Compute'),

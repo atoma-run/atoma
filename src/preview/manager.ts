@@ -1,4 +1,4 @@
-import { hasVitePreviewSource } from './sourceBuild.js';
+import { hasVitePreviewSource, rootPageNeedsBuild } from './sourceBuild.js';
 import type { RemotePreviewRuntime } from './computeController.js';
 import type { PreviewDescriptor, PreviewErrorCode, PreviewInstance, PreviewSummary } from '../contracts/preview.js';
 import type { ContainerLauncher } from '../contracts/launcher.js';
@@ -129,12 +129,29 @@ export class PreviewManager {
    * existing source delivery. Cache bounded source eligibility per immutable delivered identity; polling
    * does not repeatedly inspect the filesystem. */
   private buildFor(orgId: string, projectId: string, runId: string, descriptor: PreviewDescriptor | null): 'vite' | undefined {
-    if (!descriptor || descriptor.projectId !== projectId || descriptor.availability !== 'unavailable' ||
-      (descriptor.unavailableReason !== 'not-runnable' && descriptor.unavailableReason !== 'unsupported-deliverable') ||
+    // A Vite source's root `index.html` classifies `static` from the bare
+    // file, and served directly it loads `/src/main.ts`, which no browser
+    // runs: DVF 7e71b8a6 and 04abca98 (2026-11-28) previewed as a blank page.
+    // Any other static page keeps the direct path (`rootPageNeedsBuild` below).
+    const eligible = descriptor?.availability === 'unavailable'
+      ? descriptor.unavailableReason === 'not-runnable' || descriptor.unavailableReason === 'unsupported-deliverable'
+      : descriptor?.kind === 'static' && !descriptor.root;
+    if (!descriptor || descriptor.projectId !== projectId || !eligible ||
       !this.deps.remote?.owns(orgId, projectId, runId)) return undefined;
     const key = this.key(orgId, runId);
     if (this.buildSources.has(key)) return this.buildSources.get(key) ? 'vite' : undefined;
-    const supported = hasVitePreviewSource(this.deps.workspaceOf(orgId, projectId, runId));
+    let workspace: string;
+    try {
+      workspace = this.deps.workspaceOf(orgId, projectId, runId);
+    } catch (error) {
+      // A runnable page whose host copy cannot be read keeps the path it had.
+      if (descriptor.availability === 'available') return undefined;
+      throw error;
+    }
+    // A static page is built only when serving it directly cannot work: a
+    // working page with classic scripts, other pages or runtime data keeps it.
+    const supported = hasVitePreviewSource(workspace) &&
+      (descriptor.availability === 'unavailable' || rootPageNeedsBuild(workspace));
     if (this.buildSources.size >= 256) this.buildSources.delete(this.buildSources.keys().next().value!);
     this.buildSources.set(key, supported);
     return supported ? 'vite' : undefined;
