@@ -23,6 +23,10 @@ export const computePreviewCommandSchema = z.discriminatedUnion('method', [
      * `preview-classification`: older copiers parse this object strictly. */
     classification: computePreviewClassificationSchema.optional(),
     build: previewBuildSchema.optional(),
+    /** A Node application's proxy admits any public destination instead of
+     * `allowedHosts` (owner decision 2026-11-28). Sent only to a device that
+     * advertises `preview-open-egress`: an older app parses this strictly. */
+    openEgress: z.literal(true).optional(),
     attribution: z.boolean(), hardMs: z.number().int().positive().max(2 * 60 * 60_000) }).strict(),
   z.object({ method: z.literal('stop') }).strict(),
   z.object({ method: z.literal('connect') }).strict(),

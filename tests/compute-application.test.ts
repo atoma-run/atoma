@@ -121,6 +121,7 @@ it('advertises preview classification only while running the bundled workspace i
     const bundled = COMPUTE_IMAGES[architecture === 'arm64' ? 'arm64' : 'amd64'].workspace;
     expect(computeServices(bundled, architecture)).toContain('preview-classification');
     expect(computeServices(bundled.replace(/sha256:.*/, 'sha256:' + '0'.repeat(64)), architecture)).not.toContain('preview-classification');
-    expect(computeServices(bundled.replace(/sha256:.*/, 'sha256:' + '0'.repeat(64)), architecture)).toEqual(['workspace', 'tools', 'retrieval', 'preview']);
+    // What the app itself implements is advertised whatever images it runs.
+    expect(computeServices(bundled.replace(/sha256:.*/, 'sha256:' + '0'.repeat(64)), architecture)).toEqual(['workspace', 'tools', 'retrieval', 'preview', 'preview-open-egress']);
   }
 });

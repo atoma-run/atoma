@@ -18,6 +18,27 @@ const docker = async (args: string[]) => (await exec('docker', args, { timeout: 
 const configSchema = z.object({ machineId: z.string().uuid(), allocationId: z.string().uuid(),
   workspaceImage: computeImageSchema, previewImage: computeImageSchema, workerImage: computeImageSchema }).strict();
 
+type PreviewStart = Extract<ComputePreviewCommand, { method: 'start' }>;
+
+/**
+ * What a preview's proxy admits; null: no proxy, the application has no route
+ * out. Open (owner decision 2026-11-28) is the wildcard a run's proxy already
+ * takes on this device: any public destination, every private, loopback and
+ * link-local address refused, so the computer's own network stays out of
+ * reach. A terminal never has a network.
+ */
+export function previewEgressAllowlist(command: PreviewStart): readonly string[] | null {
+  if (command.mode === 'terminal') return null;
+  if (command.openEgress) return ['*'];
+  return command.allowedHosts.length ? command.allowedHosts : null;
+}
+
+/** The copier's input. Its image parses the command strictly and takes no part in egress. */
+export function previewCopierInput(command: PreviewStart): string {
+  const { openEgress: _openEgress, ...copied } = command;
+  return JSON.stringify(copied);
+}
+
 /** One preview slot, using a disposable Linux copy and no published port.
  * Every network stream targets the fixed app port inside this exact container. */
 export class DesktopPreview {
@@ -63,12 +84,13 @@ export class DesktopPreview {
       child.stderr.resume(); child.stdin.on('error', () => {});
       child.stdout.on('data', (bytes: Buffer) => { text += bytes.toString('utf8'); if (Buffer.byteLength(text) > 16384) { child.kill(); reject(new Error('Preview copy response too large')); } });
       child.once('error', reject); child.once('close', code => { clearTimeout(timer); if (code === 0) resolve(text); else reject(new Error('Preview copy failed')); });
-      child.stdin.end(JSON.stringify(command));
+      child.stdin.end(previewCopierInput(command));
     });
     const classified = z.object({ kind: z.enum(['static', 'node']), entry: z.string().min(1).max(512) }).strict().parse(JSON.parse(copied));
     if (this.closing) throw new Error('Preview start cancelled');
-    if (command.mode !== 'terminal' && command.allowedHosts.length) this.proxy = await startEgressSidecar({
-      runId: `compute-preview-${this.config.machineId}`, image: this.config.workerImage, allowlist: command.allowedHosts,
+    const allowlist = previewEgressAllowlist(command);
+    if (allowlist) this.proxy = await startEgressSidecar({
+      runId: `compute-preview-${this.config.machineId}`, image: this.config.workerImage, allowlist: [...allowlist],
     }, { launcher: createContainerLauncher({ image: this.config.workerImage }) });
     if (this.closing) throw new Error('Preview start cancelled');
     const entry = command.mode === 'terminal' ? '/opt/atoma-terminal/server.mjs'

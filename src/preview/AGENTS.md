@@ -502,9 +502,11 @@ like.
   application that called an API waited on the operator (DVF, 2026-11-28). Unchanged, because they are not destinations:
   the sandbox, `frame-ancestors`, `object-src`, `base-uri`, `form-action`,
   no `unsafe-eval`, no cleartext, the dropped application headers. A terminal
-  has no network. NOT covered yet: a Compute device's proxy takes exact names
-  (its strict start contract refuses `*`), so its Node servers keep the asset
-  hosts; a persistently hosted Node server has no proxy at all.
+  has no network. A Compute device is told with `openEgress` only when it
+  advertises `preview-open-egress` (its strict start contract refuses what it
+  does not know); an older app keeps the exact names. A persistently hosted
+  Node server gets the same proxy from the hosting launcher
+  ([src/launcher](../launcher/AGENTS.md#persistent-application-hosting)).
 - What this gives up is stated, not hidden: generated code in a member's
   browser can send what the member types to any HTTPS host. Preview and
   hosted origins are same-site with the visualizer, so a page's request to it

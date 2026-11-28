@@ -29,12 +29,23 @@ export function pinnedHostingAddresses(subnets: string): { app: string; proxy: s
 const engine: AsyncDockerRunner = async args => (await exec('docker', args, { timeout: 30_000, maxBuffer: 1024 * 1024 })).stdout.trim();
 /** Durable deployments have their own namespace. Preview/worker sweeps never own these objects. */
 export class DockerHosting implements HostingLauncher {
-  constructor(private readonly options: { root: string; image: string; browserImage?: string; relayImage: string; user: string; run?: AsyncDockerRunner }) {
+  constructor(private readonly options: { root: string; image: string; browserImage?: string; relayImage: string; user: string; run?: AsyncDockerRunner;
+    /** A Node application's server reaches the public Internet through its own proxy (`applicationEgressOpen`). */
+    openEgress?: boolean }) {
     if (!path.isAbsolute(options.root) || options.root === '/') throw new Error('Dedicated absolute hosting root required');
     for (const image of [options.image, options.relayImage, ...(options.browserImage ? [options.browserImage] : [])]) if (!/(?:^|@)sha256:[a-f0-9]{64}$/.test(image)) throw new Error('Hosting images must be pinned');
     if (!/^[1-9]\d*:\d+$/.test(options.user)) throw new Error('Non-root hosting identity required');
   }
   private run(args: string[]): Promise<string> { return (this.options.run ?? engine)(args); }
+  /**
+   * A Node server with a route out (owner decision 2026-11-28): the public-only
+   * proxy a browser deployment already has, reached through Node's own proxy
+   * support. Decided here, by the host, never by a caller; a static page runs
+   * no application code and gets none, and a browser deployment's server is
+   * left as it was (its proxy serves its browser).
+   */
+  private egress(spec: HostingLaunch): boolean { return this.options.openEgress === true && spec.kind === 'node' && !spec.browser; }
+  private proxied(spec: HostingLaunch): boolean { return !!spec.browser || this.egress(spec); }
   private names(raw: HostingIdentity) {
     const id = hostingIdentitySchema.parse(raw);
     const prefix = `atoma-hosted-${id.deploymentId}`;
@@ -60,6 +71,9 @@ export class DockerHosting implements HostingLauncher {
     const n = this.names(id);
     const names = (await this.run(['ps', '--filter', 'label=dev.atoma.owner=hosting', '--format', '{{.Names}}'])).split('\n');
     if (!names.includes(n.app) || !names.includes(n.relay)) return null;
+    // A browser deployment is its proxy too. A Node server's egress proxy is
+    // NOT part of "running": the application serves without it, and an
+    // auxiliary container must never take a customer's site offline.
     const browser = await this.run(['inspect', '--format', '{{index .Config.Labels "dev.atoma.browser"}}', n.app]);
     if (browser.trim() === 'true' && !names.includes(n.proxy)) return null;
     const output = await this.run(['port', n.relay, '8081']);
@@ -70,8 +84,9 @@ export class DockerHosting implements HostingLauncher {
   }
   /** Which images, user and launch a set of created objects was made for: a start uses only objects made for its own. */
   private specDigest(spec: HostingLaunch): string {
+    // Appended only when set: objects prepared before it existed keep their digest.
     return createHash('sha256').update(JSON.stringify([spec.kind, spec.entry, !!spec.browser, this.options.image,
-      this.options.browserImage ?? null, this.options.relayImage, this.options.user])).digest('hex').slice(0, 32);
+      this.options.browserImage ?? null, this.options.relayImage, this.options.user, ...(this.egress(spec) ? ['egress'] : [])])).digest('hex').slice(0, 32);
   }
   private launchable(spec: HostingLaunch): { id: HostingIdentity; n: ReturnType<DockerHosting['names']> } {
     if (spec.browser && (spec.kind !== 'node' || !this.options.browserImage)) throw new Error('Browser hosting is not configured');
@@ -100,7 +115,7 @@ export class DockerHosting implements HostingLauncher {
       await this.run(['network', 'create', ...labels, n.uplink]);
       const pinned = pinnedHostingAddresses(await this.run(['network', 'inspect', '--format', '{{range .IPAM.Config}}{{.Subnet}} {{end}}', n.internal]));
       const bounds = ['--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--memory', '512m', '--memory-swap', '512m', '--cpus', '0.5', '--pids-limit', '128', '--log-opt', 'max-size=1m', '--log-opt', 'max-file=2'];
-      if (spec.browser) {
+      if (this.proxied(spec)) {
         await this.run(['create', '--name', n.proxy, ...made, '--restart', 'unless-stopped', '--network', n.uplink,
           '--user', this.options.user, '--read-only', ...bounds, '-e', 'ATOMA_EGRESS_ALLOWLIST=*',
           '--entrypoint', 'node', this.options.relayImage, '/app/dist/tools/egressProxy.js']);
@@ -109,12 +124,16 @@ export class DockerHosting implements HostingLauncher {
       const appBounds = spec.browser ? ['--memory', '1536m', '--memory-swap', '1536m', '--cpus', '1', '--pids-limit', '256', '--shm-size', '256m'] : [];
       await this.run(['create', '--name', n.app, ...made, '--restart', 'unless-stopped', '--network', n.internal, '--ip', pinned.app,
         ...(spec.browser ? ['--label', 'dev.atoma.browser=true'] : []),
+        ...(this.egress(spec) ? ['--label', 'dev.atoma.egress=true'] : []),
         '--runtime', 'runsc', '--user', this.options.user, '--read-only', ...bounds, ...appBounds,
         '--tmpfs', spec.browser ? '/tmp:rw,noexec,nosuid,size=256m' : '/tmp:rw,noexec,nosuid,size=64m', '--mount', `type=bind,src=${n.source},dst=/workspace,readonly`,
         '--mount', `type=bind,src=${n.data},dst=/data`, '-w', '/workspace',
         '-e', spec.browser ? 'PORT=8082' : 'PORT=8080', '-e', 'HOST=0.0.0.0', '-e', 'NODE_ENV=production', '-e', 'HOME=/tmp', '-e', 'ATOMA_DATA_DIR=/data',
         // The proxy's address is pinned, so it is known before anything starts; the start checks it.
         ...(spec.browser ? ['-e', `ATOMA_BROWSER_PROXY=http://${pinned.proxy}:3128`, '-e', 'ATOMA_BROWSER_URL=http://127.0.0.1:9222', '-e', 'ATOMA_BROWSER_DESKTOP_URL=/.atoma/browser/'] : []),
+        // The same four variables a Node preview gets (src/launcher/docker.ts): the internal network has no other route.
+        ...(this.egress(spec) ? ['-e', `HTTP_PROXY=http://${pinned.proxy}:3128`, '-e', `HTTPS_PROXY=http://${pinned.proxy}:3128`,
+          '-e', 'NO_PROXY=127.0.0.1,localhost,::1', '-e', 'NODE_USE_ENV_PROXY=1'] : []),
         '--entrypoint', 'node', spec.browser ? this.options.browserImage! : this.options.image,
         ...(spec.browser ? ['/opt/atoma-hosting/browser.mjs', spec.entry] : [spec.kind === 'static' ? '/opt/atoma-hosting/static.mjs' : spec.entry])]);
       await this.run(['create', '--name', n.relay, ...made, '--restart', 'unless-stopped', '--network', n.uplink,
@@ -125,7 +144,7 @@ export class DockerHosting implements HostingLauncher {
   }
   /** Every object of this deployment exists, unstarted, made for exactly this spec, and nothing else of it exists. */
   private async created(spec: HostingLaunch, n: ReturnType<DockerHosting['names']>): Promise<boolean> {
-    const expected = [n.app, n.relay, ...(spec.browser ? [n.proxy] : [])];
+    const expected = [n.app, n.relay, ...(this.proxied(spec) ? [n.proxy] : [])];
     const digest = this.specDigest(spec);
     const rows = (await this.run(['ps', '-a', '--filter', `label=dev.atoma.deployment=${spec.deploymentId}`, '--format', '{{.Names}} {{.State}} {{.Label "dev.atoma.spec"}}']))
       .split('\n').map(line => line.trim().split(/\s+/)).filter(parts => parts[0]);
@@ -154,6 +173,15 @@ export class DockerHosting implements HostingLauncher {
       if (spec.browser) {
         await this.run(['start', n.proxy]);
         if (await this.address(n.proxy, n.internal) !== pinned.proxy) throw new Error('No browser proxy address');
+      } else if (this.egress(spec)) {
+        // Before the application, so its first outbound call has a route. A
+        // proxy that will not start costs the server its route out, which is
+        // what it had before 2026-11-28, never the deployment: the update
+        // that is starting it has already stopped the version it replaces.
+        try {
+          await this.run(['start', n.proxy]);
+          if (await this.address(n.proxy, n.internal) !== pinned.proxy) throw new Error('No proxy address');
+        } catch { console.error(`Hosted application ${spec.deploymentId} started without its egress proxy`); }
       }
       await this.run(['start', n.app]);
       if (await this.address(n.app, n.internal) !== pinned.app) throw new Error('No isolated application address');

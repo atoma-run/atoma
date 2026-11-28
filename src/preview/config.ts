@@ -1,5 +1,5 @@
 import { previewRuntimeSchema, previewEgressHostsSchema, type PreviewRuntime } from '../contracts/preview.js';
-import { DEFAULT_WEB_RESOURCE_HOSTS } from '../contracts/webResources.js';
+import { APPLICATION_EGRESS_HOSTS_ENV, applicationEgressOpen, DEFAULT_WEB_RESOURCE_HOSTS } from '../contracts/webResources.js';
 import { isLoopbackHost, isLoopbackOrigin } from '../auth/providers.js';
 
 /**
@@ -31,7 +31,7 @@ export const PREVIEW_ENV = {
   idleMs: 'ATOMA_PREVIEW_IDLE_MS',
   hardMs: 'ATOMA_PREVIEW_HARD_MS',
   copyMaxBytes: 'ATOMA_PREVIEW_COPY_MAX_BYTES',
-  allowedHosts: 'ATOMA_PREVIEW_ALLOWED_HOSTS',
+  allowedHosts: APPLICATION_EGRESS_HOSTS_ENV,
 } as const;
 
 export const PREVIEW_DEFAULTS = {
@@ -67,8 +67,8 @@ export interface PreviewConfig {
   readonly allowedHosts?: readonly string[];
   /**
    * Previews reach any public destination (`previewEgressOpen`). The
-   * exact `allowedHosts` stay for the peers that take names only: a Compute
-   * device's own proxy, and the restricted mode an operator can still set.
+   * exact `allowedHosts` stay for the peers that take names only: an older
+   * Compute app's proxy, and the restricted mode an operator can still set.
    */
   readonly openEgress?: boolean;
 }
@@ -100,8 +100,7 @@ export function previewEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
  * open; any other value, the empty string included, is the list it always was.
  */
 export function previewEgressOpen(env: NodeJS.ProcessEnv = process.env): boolean {
-  const value = env[PREVIEW_ENV.allowedHosts];
-  return value === undefined || value.trim() === '*';
+  return applicationEgressOpen(env);
 }
 
 /** Is ANY preview variable present? Half a configuration must not read as off. */

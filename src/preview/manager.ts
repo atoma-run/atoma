@@ -301,7 +301,8 @@ export class PreviewManager {
       const allowed = terminal ? [] : effectiveEgressHosts(requestedHosts, approved, this.deps.config.allowedHosts).allowed;
       // Open: the browser policy admits every HTTPS destination and a Node
       // application's proxy every public one. The exact list still goes to a
-      // Compute device, whose own proxy takes names only.
+      // Compute device, which opens its own proxy only when its app can
+      // (`preview-open-egress`, decided in the compute controller).
       const open = this.openFor(terminal);
       const openRoute = open ? { openEgress: true as const } : {};
 

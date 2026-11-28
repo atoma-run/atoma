@@ -450,6 +450,17 @@ Only UUID identities, a validated relative Node entry and an optional browser
 capability cross RPC. The browser image, persistent profile, private desktop and
 public-only egress proxy are fixed by the host. CDP/VNC never publish ports. Source is
 read-only; per-project `/data` survives every stop. No deletion API exists.
+A Node server gets that same proxy when egress is open (owner decision
+2026-11-28, `applicationEgressOpen` read from the LAUNCHER's environment,
+never from a caller): the four proxy variables a Node preview gets and a
+`dev.atoma.egress` label. A running deployment is never touched for it:
+`startHosting` returns what `inspectHosting` finds, so the route arrives with
+the next update; the spec digest differs only when the proxy is wanted, so
+objects prepared before stay valid. That proxy is NOT part of "running" and
+its failed start is logged, not thrown (review 2026-11-28): the update
+starting it has already stopped the version it replaces, and an auxiliary
+container must not take a customer's site offline. A static page runs no
+application code and gets none; a browser deployment's server is unchanged.
 See [project hosting](../../docs/project-hosting.md) for supported limitations.
 A deployment moves `current` but never restarts `atoma-hosting-launcher`, so
 `hostingMain` watches its own release path (`releaseWatch.ts`) and exits 75 for
@@ -457,6 +468,12 @@ systemd's `Restart=on-failure` once the release changed and no connection is
 open: started minutes before address pinning, it created a pinless deployment
 nine days later (2026-10-25). The web retries its hosting start, and an
 unreachable launcher never marks an application unavailable.
+
+A desktop preview's proxy is decided by `previewEgressAllowlist` from the
+start command alone: `*` when the host says the application is open, the
+exact names otherwise, nothing for a terminal. The app advertises
+`preview-open-egress` whatever images it runs, and never hands the field to
+its copier.
 
 Compute Vite preview preparation is owned by [preview](../preview/AGENTS.md#source-only-vite-previews-on-compute).
 `DesktopPreview` passes its fixed build flag only to the app isolate; the

@@ -23,7 +23,10 @@ export class ComputePreviewController implements RemotePreviewRuntime {
   private readonly active = new Map<string, { identity: ComputePreviewIdentity; peer: ComputeConnection; disconnected: () => void }>();
   constructor(private readonly options: { projects: ProjectStore; devices: ComputeDeviceStore;
     connectionFor(session: ComputeSession): ComputeConnection | undefined;
-    unavailable(orgId: string, runId: string, generation: number): void }) {}
+    unavailable(orgId: string, runId: string, generation: number): void;
+    /** The deployment's applications reach any public destination (`previewEgressOpen`). Read where the
+     * device connection lives, so nothing new crosses the web-to-executor call. */
+    openEgress?: boolean }) {}
   private key(orgId: string, runId: string, generation: number) { return `${orgId}:${runId}:${generation}`; }
   owns(orgId: string, projectId: string, runId: string): boolean {
     const run = this.options.projects.getProjectRun(orgId, runId);
@@ -50,6 +53,8 @@ export class ComputePreviewController implements RemotePreviewRuntime {
         copyMaxBytes: Math.min(input.copyMaxBytes, 512 * 1024 ** 2), allowedHosts: [...input.allowedHosts],
         attribution: input.attribution, hardMs: input.hardMs,
         ...(input.build ? { build: input.build } : {}),
+        // An older app keeps the exact names it always received; a terminal has no network.
+        ...(this.options.openEgress && input.mode === 'app' && peer.acceptsPreviewOpenEgress() ? { openEgress: true as const } : {}),
         ...(input.source === 'delivered' ? { artifactHash: run.artifactManifestHash!, delivery: run.artifactManifest?.delivery } : {}),
         ...(input.source === 'delivered' && input.mode === 'app' && input.classification?.availability === 'available' &&
           input.classification.kind && peer.acceptsPreviewClassification()

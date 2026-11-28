@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { expect, it, vi } from 'vitest';
 import { copyComputePreview } from '../src/preview/computeCopy.js';
 import { computePreviewCommandSchema } from '../src/contracts/computePreview.js';
-import { DesktopPreview } from '../src/launcher/desktopPreview.js';
+import { DesktopPreview, previewCopierInput, previewEgressAllowlist } from '../src/launcher/desktopPreview.js';
 import { DesktopCompute } from '../src/launcher/desktopCompute.js';
 import { openComputePreviewStream } from '../src/preview/computeStream.js';
 import { artifactManifestHash, buildWorkspaceArtifactManifest } from '../src/projects/artifacts.js';
@@ -39,6 +39,24 @@ it.each(['app', 'terminal'] as const)('takes an executable-preserving %s copy an
     finally { rmSync(copy, { recursive: true, force: true }); }
     expect(() => computePreviewCommandSchema.parse({ method: 'connect', url: 'http://localhost:22' })).toThrow();
   } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+// 2026-11-28: open egress. The proxy a preview gets is decided from the start
+// command alone, and the copier's image never sees the new field.
+it('gives an open application the public wildcard, a listed one its names, and a terminal no network', () => {
+  const app = { ...start, source: 'delivered' as const, artifactHash: 'a'.repeat(64) };
+  expect(previewEgressAllowlist({ ...app, openEgress: true })).toEqual(['*']);
+  expect(previewEgressAllowlist({ ...app, openEgress: true, allowedHosts: ['fonts.googleapis.com'] })).toEqual(['*']);
+  expect(previewEgressAllowlist({ ...app, allowedHosts: ['fonts.googleapis.com'] })).toEqual(['fonts.googleapis.com']);
+  expect(previewEgressAllowlist(app)).toBeNull();
+  expect(previewEgressAllowlist({ ...app, mode: 'terminal', openEgress: true, allowedHosts: ['fonts.googleapis.com'] })).toBeNull();
+  // Only `true` is a value: the schema refuses anything else before a proxy exists.
+  expect(() => computePreviewCommandSchema.parse({ ...app, openEgress: false })).toThrow();
+  expect(() => computePreviewCommandSchema.parse({ ...app, openEgress: '*' })).toThrow();
+  // An image built before the field parses the command strictly: it is never handed over.
+  const copied = JSON.parse(previewCopierInput({ ...app, openEgress: true, build: 'vite' })) as Record<string, unknown>;
+  expect(copied).not.toHaveProperty('openEgress');
+  expect(copied).toEqual({ ...app, build: 'vite' });
 });
 
 // Attica 84ae80d1 (2026-10-23): the device's probe manifest held no HTTP

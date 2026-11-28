@@ -64,6 +64,11 @@ The private preview start may carry `build: vite`, a closed runtime capability,
 not a shell command. Only a device advertising hello-only `preview-vite` receives
 it. The connection strips that capability before persistence so older executor
 generations can keep reading stored sessions. Server-first rollout is required.
+`openEgress: true` follows the same rule with hello-only `preview-open-egress`
+(2026-11-28): the device's proxy then admits any public destination instead
+of `allowedHosts`. The device strips it before its copier, whose image parses
+the command strictly. `applicationEgressOpen` (`webResources.ts`) is the one
+reading of the switch, shared by the web process and the hosting launcher.
 
 ## Haystack runtime configuration
 

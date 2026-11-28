@@ -2774,6 +2774,7 @@ computePreviewRuntime.current = COMPUTE && COMPUTE_GATEWAY && PROJECTS_RUNTIME ?
   devices: COMPUTE.devices, projects: PROJECTS_RUNTIME.store,
   connectionFor: session => COMPUTE_GATEWAY!.connectionFor(session),
   unavailable: (orgId, runId, generation) => PREVIEW_RUNTIME?.manager.remoteUnavailable(orgId, runId, generation),
+  openEgress: previewEgressOpen(process.env),
 }) : undefined;
 }
 if (!EXECUTOR_SOCKET) attachComputeRuntime(server);

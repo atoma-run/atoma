@@ -23,7 +23,8 @@ import { ComputeConnectionUnavailableError } from './computeClient.js';
  * that parses the start command strictly never receives the field. */
 export function computeServices(workspaceImage: string, architecture: string = process.arch, previewImage?: string) {
   const bundled = COMPUTE_IMAGES[architecture === 'arm64' ? 'arm64' : 'amd64'].workspace;
-  return ['workspace', 'tools', 'retrieval', 'preview', ...(workspaceImage === bundled ? ['preview-classification' as const] : []),
+  // `preview-open-egress` is this app's own doing (`previewEgressAllowlist`), whatever images it runs.
+  return ['workspace', 'tools', 'retrieval', 'preview', 'preview-open-egress', ...(workspaceImage === bundled ? ['preview-classification' as const] : []),
     ...(COMPUTE_VITE_PREVIEW_IMAGES.some(pair => pair.workspace === workspaceImage && pair.preview === previewImage) ? ['preview-vite' as const] : [])] as const;
 }
 

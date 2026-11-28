@@ -1123,7 +1123,7 @@ it.each([true, false])('frees a refused preview start and keeps the classificati
   projects.transitionProjectRun({ orgId: owner.orgId, projectRunId: runId, from: 'queued', to: 'running' });
   let starts = 0;
   const client = await connectComputeWorkspace({ url, credential: paired.credential, machineId: paired.deviceId,
-    capabilities: { ...capabilities, services: ['workspace', 'tools', 'preview', ...(advertised ? ['preview-classification' as const] : [])] },
+    capabilities: { ...capabilities, services: ['workspace', 'tools', 'preview', ...(advertised ? ['preview-classification' as const, 'preview-open-egress' as const] : [])] },
     ca: readFileSync(join(root, 'cert'), 'utf8'), stopWorkloads: async () => {},
     preview: async (_identity, command) => {
       if (command.method !== 'start') throw new Error('Unexpected preview command');
@@ -1134,6 +1134,7 @@ it.each([true, false])('frees a refused preview start and keeps the classificati
   try {
     const peer = peers.at(-1)!;
     expect(peer.acceptsPreviewClassification()).toBe(advertised);
+    expect(peer.acceptsPreviewOpenEgress()).toBe(advertised);
     const stored = db.prepare('SELECT capabilities FROM compute_devices WHERE device_id=?').get(paired.deviceId) as { capabilities: string };
     expect(JSON.parse(stored.capabilities).services).toEqual(['workspace', 'tools', 'preview']);
     expect(devices.supports(client.session, 'preview')).toBe(true);
@@ -2091,6 +2092,36 @@ it('reports whether a failed finalization reached the computer: after assign it 
       expect(journal.inspect(receipt.projectRunId)?.phase).toBe('transferred');
     } finally { await third.close(); }
   } finally { stderr.mockRestore(); await client.close(); }
+});
+
+// 2026-11-28: an application's server reaches any public destination by default,
+// but a device's start contract is strict: only one that advertises
+// `preview-open-egress` is told, and only when the deployment is open.
+it('tells only a capable device, on an open deployment, that an application may reach any public destination', async () => {
+  const { ComputePreviewController } = await import('../src/preview/computeController.js');
+  const sent: Array<Record<string, unknown>> = [];
+  const controllerFor = (openEgress: boolean | undefined, capable: boolean) => new ComputePreviewController({
+    projects: { getProjectRun: () => ({ projectId: 'p', status: 'delivered', artifactManifestHash: 'a'.repeat(64),
+      executionTarget: { kind: 'customer-device', deviceId: 'd' } }) } as never,
+    devices: { currentSession: () => ({ deviceId: 'd', sessionId: 's', generation: 1 }), supports: () => true, authorizePreview: () => {} } as never,
+    connectionFor: () => ({ signal: new AbortController().signal, acceptsPreviewClassification: () => false, acceptsPreviewVite: () => false,
+      acceptsPreviewOpenEgress: () => capable,
+      requestPreview: async (_identity: unknown, command: Record<string, unknown>) => {
+        sent.push(command);
+        return { method: 'start', value: { kind: 'node', entry: command['mode'] === 'terminal' ? 'terminal' : 'server.js', imageDigest } };
+      } }) as never,
+    unavailable: () => {}, ...(openEgress === undefined ? {} : { openEgress }) });
+  const input = (mode: 'app' | 'terminal') => ({ orgId: 'o', projectId: 'p', runId: randomUUID(), generation: 1, source: 'delivered' as const, mode,
+    copyMaxBytes: 1024, allowedHosts: ['fonts.googleapis.com'], attribution: false, hardMs: 60_000 });
+  await controllerFor(true, true).start(input('app'));
+  expect(sent.at(-1)).toMatchObject({ openEgress: true, allowedHosts: ['fonts.googleapis.com'] });
+  // An older app, a closed deployment, an unset option and a terminal each get the command they always got.
+  await controllerFor(true, false).start(input('app'));
+  await controllerFor(false, true).start(input('app'));
+  await controllerFor(undefined, true).start(input('app'));
+  await controllerFor(true, true).start(input('terminal'));
+  for (const command of sent.slice(1)) expect(command).not.toHaveProperty('openEgress');
+  expect(sent).toHaveLength(5);
 });
 
 it('refuses a Vite build before allocating on old Compute and sends only the fixed build capability to a supported device', async () => {

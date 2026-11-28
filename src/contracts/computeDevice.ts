@@ -24,7 +24,7 @@ export const computeCapabilitiesSchema = computeResourcesSchema.extend({
   /** `preview-classification` is a hello-only signal: the connection keeps it
    * in memory and never stores it, so an older executor generation reading the
    * stored row never meets a value its strict schema rejects. */
-  services: z.array(z.enum(['workspace', 'tools', 'retrieval', 'preview', 'preview-classification', 'preview-vite'])).max(6).optional(),
+  services: z.array(z.enum(['workspace', 'tools', 'retrieval', 'preview', 'preview-classification', 'preview-vite', 'preview-open-egress'])).max(7).optional(),
   imageDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/),
 }).strict();
 export type ComputeCapabilities = z.infer<typeof computeCapabilitiesSchema>;

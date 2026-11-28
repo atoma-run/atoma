@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { DockerHosting, pinnedHostingAddresses } from '../src/launcher/hosting.js';
 import { hostingLaunchSchema } from '../src/contracts/projectHosting.js';
 const roots: string[] = [];
@@ -43,7 +43,8 @@ function engine(record: string[][], image: string, browserImage = image) {
     if (args[0] === 'inspect') {
       const name = args.at(-1)!;
       if (args.includes('{{.Config.Image}}')) return containers.get(name)?.labels.get('dev.atoma.browser') ? browserImage : image;
-      if (args.some(a => a.includes('dev.atoma.browser'))) return containers.get(name)?.labels.get('dev.atoma.browser') ?? '';
+      const label = /Labels "(dev\.atoma\.[a-z]+)"/.exec(args.join(' '))?.[1];
+      if (label) return containers.get(name)?.labels.get(label) ?? '';
       // A created container has no address yet; the engine assigns the pinned one when it starts.
       if (containers.get(name)?.state !== 'running') return '';
       return name.endsWith('-proxy') ? '10.5.0.3' : '10.5.0.2';
@@ -104,6 +105,84 @@ it('browser capability uses a fixed image, persistent profile, and a public-only
   expect(proxy).not.toContain('-p');
 });
 
+it('gives a Node server a public-only proxy when egress is open, and leaves static pages and closed hosts without one', async () => {
+  const f = fixture();
+  const { run, containers } = engine(f.calls, f.image);
+  const open = new DockerHosting({ root: f.root, image: f.image, relayImage: f.image, user: '10001:10001', run, openEgress: true });
+  expect(await open.startHosting({ ...f.id, entry: 'server.js', kind: 'node' })).toMatchObject({ hostPort: 32123 });
+  const app = f.calls.find(a => a[0] === 'create' && a.includes('runsc'))!;
+  // The four variables Node's own proxy support reads; the address is the pinned one.
+  expect(app).toEqual(expect.arrayContaining(['HTTP_PROXY=http://10.5.0.3:3128', 'HTTPS_PROXY=http://10.5.0.3:3128',
+    'NO_PROXY=127.0.0.1,localhost,::1', 'NODE_USE_ENV_PROXY=1', 'dev.atoma.egress=true']));
+  expect(app.join(' ')).not.toContain('ATOMA_BROWSER');
+  const proxy = f.calls.find(a => a[0] === 'create' && a.includes('/app/dist/tools/egressProxy.js'))!;
+  expect(proxy).toEqual(expect.arrayContaining(['ATOMA_EGRESS_ALLOWLIST=*', '--read-only', '--cap-drop', 'ALL']));
+  expect(proxy).not.toContain('-p');
+  // The proxy starts before the application that depends on it.
+  const started = f.calls.filter(a => a[0] === 'start').map(a => a[1]!.replace(/^.*-/, ''));
+  expect(started).toEqual(['proxy', 'app', 'relay']);
+  // The proxy is not part of "running": the site stays online without it.
+  const proxyName = [...containers.keys()].find(name => name.endsWith('-proxy'))!;
+  containers.get(proxyName)!.state = 'exited';
+  expect(await open.inspectHosting(f.id)).toMatchObject({ hostPort: 32123 });
+  await open.stopHosting(f.id);
+  expect(containers.size).toBe(0);
+
+  // A static page runs no server code: no proxy, no variables.
+  const page = { ...f.id, deploymentId: randomUUID() };
+  const before = f.calls.length;
+  await open.startHosting({ ...page, entry: 'index.js', kind: 'static' });
+  const made = f.calls.slice(before).filter(a => a[0] === 'create');
+  expect(made).toHaveLength(2);
+  expect(made.flat().join(' ')).not.toMatch(/egressProxy|HTTP_PROXY|dev\.atoma\.egress/);
+  await open.stopHosting(page);
+
+  // Closed (an operator's exact list): the launch a Node server always had, same objects, same digest.
+  const digestOf = (calls: string[][]) => calls.find(a => a[0] === 'create' && a.includes('runsc'))!.find(a => a.startsWith('dev.atoma.spec='));
+  const closedCalls: string[][] = [];
+  const closed = new DockerHosting({ root: f.root, image: f.image, relayImage: f.image, user: '10001:10001', run: engine(closedCalls, f.image).run });
+  const node = { ...f.id, deploymentId: randomUUID() };
+  await closed.startHosting({ ...node, entry: 'server.js', kind: 'node' });
+  expect(closedCalls.filter(a => a[0] === 'create')).toHaveLength(2);
+  expect(closedCalls.filter(a => a[0] === 'create').flat().join(' ')).not.toMatch(/egressProxy|HTTP_PROXY|dev\.atoma\.egress/);
+  expect(digestOf(closedCalls)).not.toBe(digestOf(f.calls));
+  // And that closed digest is the one every deployment prepared before this change carries.
+  const before2026_11_28 = createHash('sha256').update(JSON.stringify(['node', 'server.js', false, f.image, null, f.image, '10001:10001'])).digest('hex').slice(0, 32);
+  expect(digestOf(closedCalls)).toBe(`dev.atoma.spec=${before2026_11_28}`);
+});
+it('never touches a deployment already running when the launcher turns open, and starts a prepared one without creating', async () => {
+  const f = fixture();
+  const shared = engine(f.calls, f.image);
+  const options = { root: f.root, image: f.image, relayImage: f.image, user: '10001:10001', run: shared.run };
+  // Online since before the change: two containers, no proxy, no egress label.
+  await new DockerHosting(options).startHosting({ ...f.id, entry: 'server.js', kind: 'node' });
+  const open = new DockerHosting({ ...options, openEgress: true });
+  const mutating = () => f.calls.filter(a => ['create', 'start', 'stop', 'rm'].includes(a[0]!) || (a[0] === 'network' && ['create', 'rm', 'connect'].includes(a[1]!))).length;
+  const before = mutating();
+  expect(await open.startHosting({ ...f.id, entry: 'server.js', kind: 'node' })).toMatchObject({ hostPort: 32123 });
+  expect(mutating()).toBe(before);
+  expect([...shared.containers.keys()].some(name => name.endsWith('-proxy'))).toBe(false);
+  // Its update: prepared while it serves, three objects, then started with no further create.
+  const next = { ...f.id, deploymentId: randomUUID(), entry: 'server.js', kind: 'node' as const };
+  await open.createHosting(next);
+  expect([...shared.containers.entries()].filter(([, c]) => c.state === 'created')).toHaveLength(3);
+  const creates = f.calls.filter(a => a[0] === 'create').length;
+  expect(await open.startHosting(next)).toMatchObject({ hostPort: 32123 });
+  expect(f.calls.filter(a => a[0] === 'create')).toHaveLength(creates);
+  expect([...shared.containers.values()].filter(c => c.state === 'running')).toHaveLength(5);
+});
+it('starts the application even when its egress proxy will not start', async () => {
+  const f = fixture();
+  const shared = engine(f.calls, f.image);
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const flaky = new DockerHosting({ root: f.root, image: f.image, relayImage: f.image, user: '10001:10001', openEgress: true,
+      run: async args => { if (args[0] === 'start' && args[1]!.endsWith('-proxy')) throw new Error('engine refused'); return shared.run(args); } });
+    expect(await flaky.startHosting({ ...f.id, entry: 'server.js', kind: 'node' })).toMatchObject({ hostPort: 32123 });
+    expect([...shared.containers.entries()].filter(([, c]) => c.state === 'running').map(([name]) => name.replace(/^.*-/, '')).sort()).toEqual(['app', 'relay']);
+    expect(errors).toHaveBeenCalledWith(expect.stringContaining('without its egress proxy'));
+  } finally { errors.mockRestore(); }
+});
 it('pins app, proxy and relay addresses so an engine restart cannot swap them', async () => {
   // 2026-10-16: after a Docker restart the app and its proxy swapped dynamic
   // addresses and the relay, which names its upstream by address, answered 502.

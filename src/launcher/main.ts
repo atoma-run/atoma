@@ -10,6 +10,7 @@ import path from 'node:path';
 import { DockerLauncher, hostContainerUser } from './docker.js';
 import { serveLauncher } from './service.js';
 import { launcherHelloSchema, LAUNCHER_PROTOCOL_VERSION } from '../contracts/launcherRpc.js';
+import { applicationEgressOpen } from '../contracts/webResources.js';
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -94,7 +95,8 @@ async function main(): Promise<void> {
     socketPath, launcher, hello, workers,
     ...(process.env['ATOMA_HOSTING_ROOT'] ? { hosting: new DockerHosting({
       root: process.env['ATOMA_HOSTING_ROOT'], image: process.env['ATOMA_HOSTING_IMAGE'] ?? '',
-      relayImage: image, user: previewUser, ...(process.env['ATOMA_HOSTING_BROWSER_IMAGE'] ? { browserImage: process.env['ATOMA_HOSTING_BROWSER_IMAGE'] } : {}),
+      relayImage: image, user: previewUser, openEgress: applicationEgressOpen(process.env),
+      ...(process.env['ATOMA_HOSTING_BROWSER_IMAGE'] ? { browserImage: process.env['ATOMA_HOSTING_BROWSER_IMAGE'] } : {}),
     }) } : {}),
     leaseExpired: (family, ownerId) => volumes.expired(family === 'egress' ? 'worker' : 'preview', ownerId),
     renewLease: (family, ownerId) => volumes.renew(family === 'egress' ? 'worker' : 'preview', ownerId),

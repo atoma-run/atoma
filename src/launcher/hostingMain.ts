@@ -5,6 +5,7 @@ import { DockerHosting } from './hosting.js';
 import { DockerLauncher, hostContainerUser } from './docker.js';
 import { serveLauncher } from './service.js';
 import { LAUNCHER_PROTOCOL_VERSION } from '../contracts/launcherRpc.js';
+import { applicationEgressOpen } from '../contracts/webResources.js';
 import { RELEASE_RESTART_EXIT_CODE, watchRelease } from './releaseWatch.js';
 
 /** Optional hosting-only endpoint for hosts still using the legacy run launcher. */
@@ -17,7 +18,8 @@ async function main(): Promise<void> {
   const image = process.env['ATOMA_HOSTING_IMAGE'] ?? '';
   const relayImage = process.env['ATOMA_HOSTING_RELAY_IMAGE'] ?? '';
   const root = process.env['ATOMA_HOSTING_ROOT'] ?? '';
-  const hosting = new DockerHosting({ root, image, relayImage, user, ...(process.env['ATOMA_HOSTING_BROWSER_IMAGE'] ? { browserImage: process.env['ATOMA_HOSTING_BROWSER_IMAGE'] } : {}) });
+  const hosting = new DockerHosting({ root, image, relayImage, user, openEgress: applicationEgressOpen(process.env),
+    ...(process.env['ATOMA_HOSTING_BROWSER_IMAGE'] ? { browserImage: process.env['ATOMA_HOSTING_BROWSER_IMAGE'] } : {}) });
   // Probe before unlink; a second process must never steal a live endpoint.
   const live = await new Promise<boolean>((resolve, reject) => {
     const socket = createConnection(socketPath);

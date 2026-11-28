@@ -28,8 +28,19 @@ it. Clicks pass through the mark to your application.
 Applications run under gVisor, non-root, with dropped capabilities, read-only
 root, CPU/memory/process limits and isolated per-deployment networks. Ingress
 is a fixed relay published on loopback only. The runtime has no direct internet
-route or control-plane access. The optional browser capability below adds a
-private manual-verification desktop and public Internet proxy. Custom secrets,
+route or control-plane access. The server of a Node application without the
+browser capability reaches the public Internet through a proxy of its own,
+which refuses private, loopback and link-local addresses. Node's built-in
+`fetch` uses it without configuration (its `http` and `https` clients from
+Node 24.5); a library that opens raw sockets does not, and a call to the
+application's own address other than `localhost` is refused. The application
+does not wait for the proxy: a request made in its first instant may fail
+once. A deployment made earlier gets the proxy at its next update, and an
+application keeps serving if its proxy is missing. To close it, set
+`ATOMA_PREVIEW_ALLOWED_HOSTS` to a host list in the hosting launcher's own
+environment file (`hosting.env`) as well as the web server's; each deployment
+then loses its route out at its next update. The optional browser capability
+below adds a private manual-verification desktop. Custom secrets,
 custom domains, application cookies and external hosting providers remain unsupported. A delivered Docker Compose
 package is not automatically converted into a hosted application.
 

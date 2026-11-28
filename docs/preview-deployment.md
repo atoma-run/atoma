@@ -200,9 +200,11 @@ By default an application reaches any public destination: its page may load
 and call any HTTPS address, and a Node preview's server reaches the public
 Internet, on any TCP port as a run does, through a proxy owned by its
 generation, which refuses private, loopback and link-local addresses. Nobody approves hosts one by one. This
-applies to delivered and in-flight previews and to pages Atoma hosts. A
-terminal preview has no network, and a preview served by an Atoma Compute
-device still gives its Node server the asset hosts below only.
+applies to delivered and in-flight previews, to pages Atoma hosts and to a
+hosted Node server ([project hosting](project-hosting.md)). A terminal
+preview has no network. A preview served by an Atoma Compute device gives its
+Node server the same public route once the device runs an app that
+advertises it; an older app keeps the asset hosts below only.
 
 ## Restricting network access
 
@@ -212,7 +214,9 @@ reach those hosts only, plus the hosts an organisation admin approved for a
 project that a delivered run requested, and hosted pages reach no other site
 at all. An explicitly empty value allows none. Browser resource policy and Node preview proxies use
 the same list; the application container keeps an isolated internal network
-either way. The asset hosts are Google Fonts (`fonts.googleapis.com`,
+either way. The hosting launcher reads the variable from its own environment
+file: set it there too, or hosted Node servers stay open
+([project hosting](project-hosting.md)). The asset hosts are Google Fonts (`fonts.googleapis.com`,
 `fonts.gstatic.com`), jsDelivr and unpkg.
 
 Project runs now enable proxied egress by default. `ATOMA_EGRESS=0` disables
