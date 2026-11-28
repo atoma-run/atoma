@@ -978,7 +978,7 @@
   "preview.back": "Kembali ke run",
   "preview.reload": "Muat ulang",
   "preview.restart": "Mulai ulang",
-  "preview.untrusted": "Aplikasi ini dibuat oleh run. Aplikasi ini berjalan di sandbox dan jaringannya ditutup secara default — anggap semua yang ditampilkannya sebagai keluaran yang belum ditinjau, bukan sebagai saran.",
+  "preview.untrusted": "Aplikasi ini dihasilkan oleh sebuah run. Aplikasi berjalan dalam sandbox di browser Anda dan mungkin menghubungi situs lain — anggap konten yang ditampilkannya sebagai keluaran yang belum ditinjau, bukan sebagai saran.",
   "preview.snapshot.delivered": "Hasil yang dikirimkan.",
   "preview.snapshot.inFlight": "Snapshot yang diambil pada {{time}}, saat run masih berlangsung. Ini bukan hasil akhir.",
   "preview.status.starting": "Memulai pratinjau…",

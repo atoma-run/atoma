@@ -978,7 +978,7 @@
   "preview.back": "Zurück zum run",
   "preview.reload": "Neu laden",
   "preview.restart": "Neu starten",
-  "preview.untrusted": "Diese App wurde von einem run generiert. Sie wird in einer Sandbox ausgeführt und ihr Netzwerk ist standardmäßig gesperrt — betrachten Sie ihre Inhalte als ungeprüfte Ausgabe, niemals als Ratschlag.",
+  "preview.untrusted": "Diese App wurde von einem run generiert. Sie wird in einer Sandbox in Ihrem Browser ausgeführt und kann andere Websites kontaktieren. Betrachten Sie ihre Inhalte als ungeprüfte Ausgabe, niemals als Ratschlag.",
   "preview.snapshot.delivered": "Das bereitgestellte Ergebnis.",
   "preview.snapshot.inFlight": "Eine Momentaufnahme von {{time}}, während der run noch lief. Sie ist nicht das Endergebnis.",
   "preview.status.starting": "Vorschau wird gestartet…",

@@ -978,7 +978,7 @@
   "preview.back": "返回 run",
   "preview.reload": "重新加载",
   "preview.restart": "重新启动",
-  "preview.untrusted": "此应用由 run 生成。它在沙盒中运行，默认禁止网络访问——请将其显示的内容视为未经审核的输出，切勿当作建议。",
+  "preview.untrusted": "此应用由一次 run 生成。它在您浏览器的沙盒中运行，并可能连接其他网站——请将其显示的内容视为未经审核的输出，切勿当作建议。",
   "preview.snapshot.delivered": "已交付的结果。",
   "preview.snapshot.inFlight": "这是 run 仍在进行时于{{time}}拍摄的快照，并非最终结果。",
   "preview.status.starting": "正在启动预览…",

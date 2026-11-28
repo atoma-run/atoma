@@ -978,7 +978,7 @@
   "preview.back": "runに戻る",
   "preview.reload": "再読み込み",
   "preview.restart": "再起動",
-  "preview.untrusted": "このアプリはrunによって生成されました。サンドボックス内で実行され、ネットワークは既定で遮断されています。表示内容は未確認の出力として扱い、決して助言として受け取らないでください。",
+  "preview.untrusted": "このアプリはrunによって生成されました。ブラウザー内のサンドボックス環境で実行され、他のサイトにアクセスする場合があります。表示内容は未確認の出力として扱い、決して助言として受け取らないでください。",
   "preview.snapshot.delivered": "提供された結果です。",
   "preview.snapshot.inFlight": "runの実行中に{{time}}に取得されたスナップショットです。最終結果ではありません。",
   "preview.status.starting": "プレビューを開始しています…",

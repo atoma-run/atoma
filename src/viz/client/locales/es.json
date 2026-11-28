@@ -978,7 +978,7 @@
   "preview.back": "Volver al run",
   "preview.reload": "Recargar",
   "preview.restart": "Reiniciar",
-  "preview.untrusted": "Esta aplicación fue generada por un run. Está aislada en un entorno seguro y su red está cerrada de forma predeterminada; considera lo que muestra como contenido no revisado, nunca como asesoramiento.",
+  "preview.untrusted": "Esta aplicación fue generada por un run. Se ejecuta en un entorno aislado en tu navegador y puede comunicarse con otros sitios. Considera lo que muestra como contenido no revisado, nunca como asesoramiento.",
   "preview.snapshot.delivered": "El resultado entregado.",
   "preview.snapshot.inFlight": "Una instantánea tomada a las {{time}}, mientras el run aún estaba en curso. No es el resultado final.",
   "preview.status.starting": "Iniciando la vista previa…",

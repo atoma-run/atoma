@@ -978,7 +978,7 @@
   "preview.back": "Retour au run",
   "preview.reload": "Recharger",
   "preview.restart": "Redémarrer",
-  "preview.untrusted": "Cette application a été générée par un run. Elle est isolée dans une sandbox et son réseau est fermé par défaut — considère ce qu’elle affiche comme un résultat non vérifié, jamais comme un conseil.",
+  "preview.untrusted": "Cette app a été générée par un run. Elle s’exécute dans un bac à sable dans ton navigateur et peut contacter d’autres sites — considère ce qu’elle affiche comme un résultat non vérifié, jamais comme un conseil.",
   "preview.snapshot.delivered": "Le résultat livré.",
   "preview.snapshot.inFlight": "Un instantané pris à {{time}}, alors que le run était encore en cours. Ce n’est pas le résultat final.",
   "preview.status.starting": "Démarrage de l’aperçu…",
