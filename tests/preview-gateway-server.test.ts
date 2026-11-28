@@ -248,6 +248,21 @@ describe('preview gateway static serving', () => {
     expect(header(reply, 'x-content-type-options')).toBe('nosniff');
   });
 
+  it('lets a page reach any HTTPS destination on an open route, and never a terminal', async () => {
+    const policy = async (route: Parameters<PreviewRouteTable['set']>[1]) => {
+      const { port, claims } = await gateway(route);
+      const reply = await call(port, '/', { headers: { cookie: await grantCookie(port, claims) } });
+      await running?.close(); running = null;
+      return header(reply, 'content-security-policy') ?? '';
+    };
+    expect(await policy(staticRoute())).toContain("connect-src 'self';");
+    const open = await policy({ ...staticRoute(), openEgress: true });
+    expect(open).toContain("connect-src 'self' https: wss:;");
+    expect(open).toContain(`frame-ancestors ${VISUALIZER}`);
+    // The flag on a terminal route opens nothing: its isolate has no network.
+    expect(await policy({ ...staticRoute(), openEgress: true, mode: 'terminal' })).toContain("connect-src 'self';");
+  });
+
   it('serves a built front-end from the directory its checks were served from', async () => {
     mkdirSync(join(workspace, 'dist', 'assets'), { recursive: true });
     writeFileSync(join(workspace, 'dist', 'index.html'), '<h1>built</h1>');

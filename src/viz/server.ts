@@ -167,7 +167,7 @@ import { ProjectHttpError, ProjectService, roleAtLeast } from '../projects/servi
 import { PreviewStore } from '../preview/store.js';
 import { PreviewPolicyError } from '../preview/policy.js';
 import { recordDeliveredPreview } from '../preview/service.js';
-import { previewConfigPresent, previewEnabled, snapshotPreviewConfig } from '../preview/config.js';
+import { previewConfigPresent, previewEgressOpen, previewEnabled, snapshotPreviewConfig } from '../preview/config.js';
 import { PreviewClaimRegistry } from '../preview/claims.js';
 import {
   PreviewRouteTable,
@@ -1337,7 +1337,7 @@ async function startHostingRuntime() {
   await service.recover();
   const gateway = createHostingGateway(service, AUTH_RUNTIME.publicOrigin.origin,
     (org, principal) => AUTH!.store!.listOrganisationsForPrincipal(principal).some(m => m.orgId === org),
-    organisationShowsAttribution);
+    organisationShowsAttribution, undefined, previewEgressOpen(process.env));
   await new Promise<void>((resolve, reject) => { gateway.server.once('error', reject); gateway.server.listen(config.port, '127.0.0.1', resolve); });
   const health = setInterval(() => { void service.refreshHealth().catch(() => undefined); }, HOSTING_HEALTH.intervalMs); health.unref();
   gateway.server.once('close', () => clearInterval(health));

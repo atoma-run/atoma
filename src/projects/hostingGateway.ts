@@ -27,7 +27,9 @@ type HoldOutcome = 'settled' | 'timeout' | 'left' | 'full';
  */
 export function createHostingGateway(service: HostingService, controlOrigin: string, member: (org: string, principal: string) => boolean,
   /** The organisation's plan carries the Atoma mark; asked per navigation. */
-  attribution: (org: string) => boolean = () => true, hold: typeof HOSTING_HOLD = HOSTING_HOLD) {
+  attribution: (org: string) => boolean = () => true, hold: typeof HOSTING_HOLD = HOSTING_HOLD,
+  /** A hosted page reaches any public HTTPS destination (`previewEgressOpen`, owner decision 2026-11-28). */
+  openEgress = false) {
   const claims = new PreviewClaimRegistry(Date.now, randomBytes, service.deps.store.grants);
   const waiting = new Map<string, number>(); let waitingTotal = 0;
   /** Waits, bounded in time and number, for a project's swap to settle; never past the visitor leaving. */
@@ -51,7 +53,7 @@ export function createHostingGateway(service: HostingService, controlOrigin: str
   }
   const readyRow = (host: string) => service.deps.store.list().filter(r => r.state === 'ready').sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find(r => service.host(r) === host);
   const sweep = setInterval(() => claims.sweep(), 60_000); sweep.unref();
-  const policy: Record<string, string> = { ...previewResponseHeaders({ visualizerOrigin: controlOrigin, allowedHosts: [] }),
+  const policy: Record<string, string> = { ...previewResponseHeaders({ visualizerOrigin: controlOrigin, allowedHosts: [], open: openEgress }),
     'cross-origin-opener-policy': 'same-origin' };
   policy['content-security-policy'] += "; worker-src 'none'";
   function cookie(token: string) { return `${COOKIE}=${token}; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=300`; }

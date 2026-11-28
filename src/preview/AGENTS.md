@@ -86,8 +86,9 @@ an opening rechecks status after asynchronous startup.
 Three rules make it safe: the run's workspace is only ever READ; the COPY is
 classified, never the live workspace, so the classifier sees bytes that cannot
 move under it; and a reopen takes a NEW snapshot on a NEW generation, because a
-member reopening wants the state now. In-flight previews use only the operator-approved resource hosts; they never
-infer additional destinations from unfinished code.
+member reopening wants the state now. In-flight previews follow the
+deployment's egress policy; under an exact list they use the operator's
+hosts only and never infer destinations from unfinished code.
 
 Two seams of that path were wrong and are pinned by `tests/preview-end-to-end`
 (measured on a live run, 2026-09-02). The COPY policy strips every `.atoma*`
@@ -467,14 +468,14 @@ address, forwarding chain and referrer never reach the application: none of
 them are its business and all of them are things a hostile deliverable would
 like.
 
-- `frame-ancestors` is the exact visualizer origin; `frame-src`, `object-src`
-  and `base-uri` are closed.
+- `frame-ancestors` is the exact visualizer origin; `object-src` and
+  `base-uri` are closed, and `frame-src` unless egress is open.
 - `'unsafe-inline'` for scripts and styles is a DELIBERATE deviation from the
   design's literal `'self'`. A deliverable is routinely a single HTML file with
   inline `<script>`, and refusing those makes the feature not work for the
-  commonest shape a run produces. What the host allowlist actually buys is
-  EXFILTRATION control, and that lives in `default-src`/`connect-src`, which
-  stay closed — inline script is same-document and reaches nothing new. There
+  commonest shape a run produces. What a host allowlist buys is
+  EXFILTRATION control, and that lives in `default-src`/`connect-src`, closed
+  under an exact list — inline script is same-document and reaches nothing new. There
   is also no trusted application here to protect from injected script: the
   application IS model-authored code the member chose to open. `'unsafe-eval'`
   is NOT granted.
@@ -490,7 +491,29 @@ like.
 
 ## Egress policy
 
-- Hosts are exact, lower-case, dotted public DNS names. No wildcards, no
+- OPEN BY DEFAULT (owner decision 2026-11-28, `previewEgressOpen`): with
+  `ATOMA_PREVIEW_ALLOWED_HOSTS` unset or `*`, a page's policy admits every
+  HTTPS destination (`https:`, `wss:` for connections, embeds included) on
+  both gateways, and a hosted Node preview's proxy takes `['*']`: any public
+  address on any TCP port, as a run's, private, loopback and link-local ones
+  still refused ([src/tools](../tools/AGENTS.md)). The exact list was the only door and
+  nobody but the operator could open it: no run declares hosts, so no admin
+  could approve one, hosting passed an empty list, and every customer
+  application that called an API waited on the operator (DVF, 2026-11-28). Unchanged, because they are not destinations:
+  the sandbox, `frame-ancestors`, `object-src`, `base-uri`, `form-action`,
+  no `unsafe-eval`, no cleartext, the dropped application headers. A terminal
+  has no network. NOT covered yet: a Compute device's proxy takes exact names
+  (its strict start contract refuses `*`), so its Node servers keep the asset
+  hosts; a persistently hosted Node server has no proxy at all.
+- What this gives up is stated, not hidden: generated code in a member's
+  browser can send what the member types to any HTTPS host. Preview and
+  hosted origins are same-site with the visualizer, so a page's request to it
+  carries the session cookie: what stops it there is each mutation route's
+  own Origin check and the absence of CORS, no longer this policy (review
+  2026-11-28). The chrome says the app may contact other sites. An operator
+  who needs the boundary sets an exact list (hosted pages then reach no other
+  site), and everything below applies as before.
+- Under an exact list, hosts are exact, lower-case, dotted public DNS names. No wildcards, no
   `.domain` subdomain form, no ports, no IP literals, no reserved or
   private-network suffixes — deliberately narrower than
   `DEFAULT_EGRESS_ALLOWLIST`'s two forms, because that list is an operator
@@ -501,8 +524,8 @@ like.
   sidecar come to disagree about the same preview.
 - An unapproved requested host stays blocked and VISIBLE. It never prevents a
   no-egress preview from starting.
-- `ATOMA_PREVIEW_ALLOWED_HOSTS` sets exact operator-approved hosts (empty
-  disables them). Defaults come from `contracts/webResources.ts`. The same
+- `ATOMA_PREVIEW_ALLOWED_HOSTS` set to a list is exact operator-approved hosts (empty:
+  none). The names a Compute device receives when open come from `contracts/webResources.ts`. The same
   effective hosts feed browser CSP and a per-generation Node egress proxy.
   Node fetch uses that proxy; the app has no direct external network route.
 - `requestedHosts` is empty in v1 and the column is not decoration: there is no
@@ -668,5 +691,10 @@ shows the mark.
   root-absolute assets; the second turned Node projects whose own server was
   never stamped into server-less pages. Reading the HTML for its script
   addresses was refused too: file content is not machine observation.
+- **Approving hosts one by one, by the operator or by each organisation's
+  admin** (2026-11-28). The owner chose open over a per-project allowlist with
+  a one-click approval of blocked hosts: a customer's application must work
+  without a request to anyone. `*` inside a list was refused too: a list that
+  bounds nothing is not a list, so `*` is the whole value or an error.
 - **`npm install` at open time.** A missing `node_modules` is a bounded failure,
   not a network operation on a member's click.

@@ -65,6 +65,12 @@ export interface PreviewConfig {
   readonly copyMaxBytes: number;
   /** Operator-approved destinations shared by browser assets and Node previews. */
   readonly allowedHosts?: readonly string[];
+  /**
+   * Previews reach any public destination (`previewEgressOpen`). The
+   * exact `allowedHosts` stay for the peers that take names only: a Compute
+   * device's own proxy, and the restricted mode an operator can still set.
+   */
+  readonly openEgress?: boolean;
 }
 
 export class PreviewConfigError extends Error {
@@ -80,6 +86,22 @@ export function previewEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   if (value === undefined || value === '' || value === '0' || value === 'false') return false;
   if (value === '1' || value === 'true') return true;
   throw new PreviewConfigError(`${PREVIEW_ENV.enabled} must be one of: 0, false, 1, true`);
+}
+
+/**
+ * Do previews and hosted pages reach any public destination: every HTTPS
+ * address from a page, the public Internet (any TCP port, as a run) from a
+ * Node preview's server?
+ *
+ * Yes unless the operator names an exact list (owner decision 2026-11-28).
+ * Before it, the list was the only door: no run can declare the hosts its
+ * application needs, so no organisation could approve one, and every customer
+ * application that called an API waited on the operator. Unset or `*` is
+ * open; any other value, the empty string included, is the list it always was.
+ */
+export function previewEgressOpen(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env[PREVIEW_ENV.allowedHosts];
+  return value === undefined || value.trim() === '*';
 }
 
 /** Is ANY preview variable present? Half a configuration must not read as off. */
@@ -301,9 +323,10 @@ export function snapshotPreviewConfig(
   return {
     domain,
     allowedHosts: previewEgressHostsSchema.parse(
-      env[PREVIEW_ENV.allowedHosts] === undefined ? [...DEFAULT_WEB_RESOURCE_HOSTS]
+      previewEgressOpen(env) ? [...DEFAULT_WEB_RESOURCE_HOSTS]
         : env[PREVIEW_ENV.allowedHosts]!.split(',').map((host) => host.trim()).filter(Boolean)
     ),
+    openEgress: previewEgressOpen(env),
     gatewayHost,
     gatewayPort,
     publicScheme: wantsHttp ? 'http' : 'https',

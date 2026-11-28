@@ -118,6 +118,9 @@ interface PreviewOpenInput {
   readonly opener: PreviewOpener;
 }
 
+/** The proxy's own spelling of "any public destination" (`decideEgress`). */
+const PUBLIC_EGRESS: readonly string[] = ['*'];
+
 export class PreviewManager {
   private readonly starting = new Map<string, 'app' | 'terminal'>();
 
@@ -163,6 +166,11 @@ export class PreviewManager {
       ? { ...descriptor, availability: 'available', kind: 'static', entry: null, unavailableReason: null } : descriptor;
   }
 
+  /** Does this generation reach any public destination? A terminal never does. */
+  private openFor(terminal: boolean): boolean {
+    return !terminal && this.deps.config.openEgress === true;
+  }
+
   private get now(): () => number {
     return this.deps.now ?? Date.now;
   }
@@ -188,6 +196,7 @@ export class PreviewManager {
       projectRunId,
       runInFlight: options.runInFlight,
       operatorAllowedHosts: this.deps.config.allowedHosts,
+      openEgress: this.deps.config.openEgress,
     });
     const descriptor = this.runnableDescriptor(orgId, projectId, projectRunId);
     return descriptor ? { ...summary, availability: descriptor.availability, kind: descriptor.kind, reason: descriptor.unavailableReason } : summary;
@@ -290,6 +299,11 @@ export class PreviewManager {
       const host = `${previewGenerationHost(input.orgId, input.projectRunId, generation)}.${this.deps.config.domain}`;
       const approved = store.listApprovedHosts(input.orgId, input.projectId);
       const allowed = terminal ? [] : effectiveEgressHosts(requestedHosts, approved, this.deps.config.allowedHosts).allowed;
+      // Open: the browser policy admits every HTTPS destination and a Node
+      // application's proxy every public one. The exact list still goes to a
+      // Compute device, whose own proxy takes names only.
+      const open = this.openFor(terminal);
+      const openRoute = open ? { openEgress: true as const } : {};
 
       if (this.deps.remote?.owns(input.orgId, input.projectId, input.projectRunId)) {
         await this.startRemote(input, generation, 'delivered', allowed);
@@ -314,6 +328,7 @@ export class PreviewManager {
           kind: 'static',
           workspaceRoot: workspace.hostPath,
           allowedHosts: allowed,
+          ...openRoute,
           ...(descriptor.root ? { root: descriptor.root } : {}),
         });
         store.markReady({
@@ -344,7 +359,7 @@ export class PreviewManager {
             entry: descriptor?.entry ?? '',
             ...(terminal ? { mode: 'terminal' as const } : {}),
             ...(terminal && this.deps.attribution?.(input.orgId) === false ? { attribution: false as const } : {}),
-            allowedHosts: allowed,
+            allowedHosts: open ? PUBLIC_EGRESS : allowed,
           }
         );
         // THE ROUTE IS PUBLISHED LAST. `startPreview` has already proved the
@@ -358,6 +373,7 @@ export class PreviewManager {
           ...(terminal ? { mode: 'terminal' as const } : {}),
           upstreamPort: running.hostPort,
           allowedHosts: allowed,
+          ...openRoute,
         });
         store.markReady({
           orgId: input.orgId,
@@ -471,10 +487,12 @@ export class PreviewManager {
 
       const host = `${previewGenerationHost(input.orgId, input.projectRunId, generation)}.${this.deps.config.domain}`;
       const approved = store.listApprovedHosts(input.orgId, input.projectId);
-      // A run in flight has declared no hosts, so the effective set is empty
-      // and only operator-approved resource egress is available to code nobody has
-      // finished writing.
+      // A run in flight has declared no hosts: under an operator's exact list
+      // only that list is available to code nobody has finished writing. Open
+      // egress applies to a snapshot as it does to the delivery it becomes.
       const { allowed } = effectiveEgressHosts([], approved, this.deps.config.allowedHosts);
+      const open = this.openFor(false);
+      const openRoute = open ? { openEgress: true as const } : {};
 
       if (classified.kind === 'static') {
         const root = staticPreviewRoot(workspace.hostPath, { manifestRoot: sourceRoot });
@@ -485,6 +503,7 @@ export class PreviewManager {
           kind: 'static',
           workspaceRoot: workspace.hostPath,
           allowedHosts: allowed,
+          ...openRoute,
           ...(root ? { root } : {}),
         });
         store.markReady({
@@ -511,7 +530,7 @@ export class PreviewManager {
             // recreates the directory it is about to mount.
             preparedWorkspace: workspace,
             entry: classified.entry ?? '',
-            allowedHosts: allowed,
+            allowedHosts: open ? PUBLIC_EGRESS : allowed,
           }
         );
         this.deps.routes.set(host, {
@@ -521,6 +540,7 @@ export class PreviewManager {
           kind: 'node',
           upstreamPort: running.hostPort,
           allowedHosts: allowed,
+          ...openRoute,
         });
         store.markReady({
           orgId: input.orgId,
@@ -701,7 +721,8 @@ export class PreviewManager {
       attribution: this.deps.attribution?.(input.orgId) ?? true, hardMs: this.deps.config.hardMs });
     const host = `${previewGenerationHost(input.orgId, input.projectRunId, generation)}.${this.deps.config.domain}`;
     this.deps.routes.set(host, { orgId: input.orgId, projectRunId: input.projectRunId, generation, kind: 'node',
-      ...(input.mode === 'terminal' ? { mode: 'terminal' as const } : {}), connect: () => running.connect(), allowedHosts });
+      ...(input.mode === 'terminal' ? { mode: 'terminal' as const } : {}), connect: () => running.connect(), allowedHosts,
+      ...(this.openFor(input.mode === 'terminal') ? { openEgress: true as const } : {}) });
     this.deps.store.markReady({ orgId: input.orgId, projectRunId: input.projectRunId, generation,
       imageDigest: running.imageDigest, runtime: running.runtime, expiresAt: new Date(this.now() + this.deps.config.hardMs).toISOString(), now: new Date(this.now()) });
   }

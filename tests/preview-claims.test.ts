@@ -341,6 +341,36 @@ describe('preview gateway header policy', () => {
     expect(csp).not.toContain('unsafe-eval');
   });
 
+  it('opens every HTTPS destination when asked, and nothing that is not a destination', () => {
+    const closed = previewResponseHeaders({ visualizerOrigin: 'https://app.example.com', allowedHosts: [] });
+    const headers = previewResponseHeaders({ visualizerOrigin: 'https://app.example.com', allowedHosts: ['api.example.org'], open: true });
+    const directives = Object.fromEntries(headers['content-security-policy']!.split('; ').map((part) => {
+      const [name, ...sources] = part.split(' ');
+      return [name!, sources.join(' ')];
+    }));
+    // An API, a library from a CDN, an image, a font, a socket and an embed.
+    expect(directives['default-src']).toBe("'self' https:");
+    expect(directives['connect-src']).toBe("'self' https: wss:");
+    expect(directives['script-src']).toBe("'self' https: 'unsafe-inline'");
+    expect(directives['style-src']).toBe("'self' https: 'unsafe-inline'");
+    expect(directives['img-src']).toBe("'self' https: data: blob:");
+    expect(directives['font-src']).toBe("'self' https: data:");
+    expect(directives['media-src']).toBe("'self' https:");
+    expect(directives['frame-src']).toBe('https:');
+    // Cleartext, eval, plugins, the base URL, form targets and who may frame it are not destinations.
+    const csp = headers['content-security-policy']!;
+    for (const never of ['http:', ' ws:', '*', 'unsafe-eval']) expect(csp).not.toContain(never);
+    expect(directives['object-src']).toBe("'none'");
+    expect(directives['base-uri']).toBe("'none'");
+    expect(directives['form-action']).toBe("'self'");
+    expect(directives['frame-ancestors']).toBe('https://app.example.com');
+    expect(directives['sandbox']).toBe('allow-scripts allow-same-origin allow-forms allow-downloads');
+    // Every other header is the closed policy's, byte for byte.
+    const { 'content-security-policy': _open, ...rest } = headers;
+    const { 'content-security-policy': _closed, ...closedRest } = closed;
+    expect(rest).toEqual(closedRest);
+  });
+
   it('carries the rest of the response policy', () => {
     const headers = previewResponseHeaders({
       visualizerOrigin: 'https://app.example.com',

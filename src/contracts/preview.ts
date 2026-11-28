@@ -408,6 +408,11 @@ export const previewSummarySchema = z
     allowedHosts: previewEgressHostsSchema,
     /** Requested but not approved: visible, and not a reason to refuse a start. */
     blockedHosts: previewEgressHostsSchema,
+    /**
+     * The application's page reaches any HTTPS destination: the lists above
+     * then name hosts, they bound nothing. Absent: only `allowedHosts`.
+     */
+    egressOpen: z.boolean().optional(),
   })
   .strict();
 

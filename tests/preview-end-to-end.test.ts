@@ -699,6 +699,107 @@ describe('previewing a delivered artifact, end to end', () => {
   });
 });
 
+describe('open egress, the default since 2026-11-28', () => {
+  /** Records what the engine would be asked for. */
+  class RecordingLauncher extends WorkspaceOnlyLauncher {
+    readonly units: LauncherUnitSpec[] = [];
+    override async startUnit(spec: LauncherUnitSpec): Promise<LauncherUnitHandle> {
+      this.units.push(spec);
+      return super.startUnit(spec);
+    }
+  }
+  const nodeRun = () => {
+    const workspace = join(root, 'node-delivery');
+    mkdirSync(workspace, { recursive: true });
+    writeFileSync(join(workspace, 'server.js'), 'require("http").createServer().listen(process.env.PORT);');
+    writeFileSync(join(workspace, '.atoma-probes.json'), JSON.stringify({ version: 1,
+      entries: [{ probe: 'http', method: 'GET', path: '/', status: 200, entry: 'server.js' }] }));
+    const run = projects.createProjectRun({ orgId, projectId, principalId,
+      request: { goal: 'an API client', idempotencyKey: `node-${randomUUID()}` },
+      hostPaths: { workspacePath: workspace, runsPath: join(root, 'traces'), logPath: join(root, 'run.log') } })!.run;
+    return { workspace, runId: run.projectRunId };
+  };
+  const opened = async (previewConfig: PreviewConfig) => {
+    const { workspace, runId } = nodeRun();
+    const launcher = new RecordingLauncher(join(root, `copies-${runId}`));
+    const routes = new PreviewRouteTable();
+    const previewManager = new PreviewManager({ store: previews, launcher, routes, claims: new PreviewClaimRegistry(),
+      config: previewConfig, workspaceOf: () => workspace, probe: async () => true, log: () => undefined });
+    const result = await previewManager.openInFlight({ orgId, projectId, projectRunId: runId, opener: { principalId, sessionId: 's' } });
+    const route = routes.get(`${previewGenerationHost(orgId, runId, result.summary.generation)}.${previewConfig.domain}`);
+    return { launcher, route, summary: result.summary };
+  };
+
+  it('gives a Node application a proxy to any public destination and its page an open policy', async () => {
+    const open = await opened({ ...config, allowedHosts: ['fonts.googleapis.com'], openEgress: true });
+    expect(open.route).toMatchObject({ kind: 'node', openEgress: true });
+    expect(open.launcher.units.find((unit) => unit.kind === 'preview-egress-proxy')).toMatchObject({ allowlist: ['*'] });
+    expect(open.launcher.units.find((unit) => unit.kind === 'preview-app')).toMatchObject({ egress: true });
+    expect(open.summary).toMatchObject({ egressOpen: true });
+  });
+
+  it('gives a DELIVERED Node application the same proxy', async () => {
+    const { workspace, runId } = nodeRun();
+    db.prepare("UPDATE project_runs SET status = 'delivered' WHERE project_run_id = ?").run(runId);
+    recordDeliveredPreview(previews, { orgId, projectId, projectRunId: runId, workspaceRoot: workspace });
+    const delivered = async (previewConfig: PreviewConfig) => {
+      const launcher = new RecordingLauncher(join(root, `copies-${randomUUID()}`));
+      const routes = new PreviewRouteTable();
+      const previewManager = new PreviewManager({ store: previews, launcher, routes, claims: new PreviewClaimRegistry(),
+        config: previewConfig, workspaceOf: () => workspace, probe: async () => true, log: () => undefined });
+      const result = await previewManager.open({ orgId, projectId, projectRunId: runId, opener: { principalId, sessionId: 's' } });
+      const route = routes.get(`${previewGenerationHost(orgId, runId, result.summary.generation)}.${previewConfig.domain}`);
+      await previewManager.stop(orgId, projectId, runId, 'manual');
+      return { launcher, route };
+    };
+    const open = await delivered({ ...config, allowedHosts: ['fonts.googleapis.com'], openEgress: true });
+    expect(open.route).toMatchObject({ kind: 'node', openEgress: true });
+    expect(open.launcher.units.find((unit) => unit.kind === 'preview-egress-proxy')).toMatchObject({ allowlist: ['*'] });
+    const listed = await delivered({ ...config, allowedHosts: ['fonts.googleapis.com'] });
+    expect(listed.route).not.toHaveProperty('openEgress');
+    expect(listed.launcher.units.find((unit) => unit.kind === 'preview-egress-proxy')).toMatchObject({ allowlist: ['fonts.googleapis.com'] });
+  });
+
+  it('keeps an operator\'s exact list exactly as it was', async () => {
+    const listed = await opened({ ...config, allowedHosts: ['fonts.googleapis.com'] });
+    expect(listed.route).not.toHaveProperty('openEgress');
+    expect(listed.launcher.units.find((unit) => unit.kind === 'preview-egress-proxy')).toMatchObject({ allowlist: ['fonts.googleapis.com'] });
+    expect(listed.summary).not.toHaveProperty('egressOpen');
+    // No list and not open: no proxy at all, the network a preview always had.
+    const closed = await opened({ ...config, allowedHosts: [] });
+    expect(closed.launcher.units.some((unit) => unit.kind === 'preview-egress-proxy')).toBe(false);
+    expect(closed.route).not.toHaveProperty('openEgress');
+  });
+
+  it('opens a delivered static page, and sends a Compute device names only', async () => {
+    const routes = new PreviewRouteTable();
+    const starts: Array<Record<string, unknown>> = [];
+    const openConfig: PreviewConfig = { ...config, allowedHosts: ['fonts.googleapis.com'], openEgress: true };
+    const local = new PreviewManager({ store: previews, launcher: new WorkspaceOnlyLauncher(join(root, 'copies')), routes,
+      claims: new PreviewClaimRegistry(), config: openConfig, workspaceOf: () => deliveredWorkspace, probe: async () => true, log: () => undefined });
+    const first = await local.open({ orgId, projectId, projectRunId, opener: { principalId, sessionId: 's' } });
+    const host = (generation: number) => `${previewGenerationHost(orgId, projectRunId, generation)}.${DOMAIN}`;
+    expect(routes.get(host(first.summary.generation))).toMatchObject({ kind: 'static', openEgress: true, allowedHosts: ['fonts.googleapis.com'] });
+    expect(local.status(orgId, projectId, projectRunId)).toMatchObject({ egressOpen: true });
+    await local.stop(orgId, projectId, projectRunId, 'manual');
+    // The device's own proxy takes exact names: `*` would be refused by its strict contract.
+    const remote = new PreviewManager({ store: previews, launcher: new WorkspaceOnlyLauncher(join(root, 'copies')), routes,
+      claims: new PreviewClaimRegistry(), config: openConfig, workspaceOf: () => deliveredWorkspace, probe: async () => true,
+      remote: { owns: () => true, stop: async () => {},
+        start: async input => { starts.push({ ...input }); return { imageDigest: 'sha256:' + 'a'.repeat(64), runtime: 'runc', connect: async () => { throw new Error('Not used'); } }; } } });
+    const second = await remote.open({ orgId, projectId, projectRunId, opener: { principalId, sessionId: 's' } });
+    expect(starts).toHaveLength(1);
+    expect(starts[0]!['allowedHosts']).toEqual(['fonts.googleapis.com']);
+    expect(routes.get(host(second.summary.generation))).toMatchObject({ openEgress: true });
+    await remote.stop(orgId, projectId, projectRunId, 'manual');
+    // A terminal is Atoma's interface over an isolate with no network, open or not.
+    const terminal = await remote.open({ orgId, projectId, projectRunId, mode: 'terminal', opener: { principalId, sessionId: 's' } });
+    expect(starts[1]).toMatchObject({ mode: 'terminal', allowedHosts: [] });
+    expect(routes.get(host(terminal.summary.generation))).not.toHaveProperty('openEgress');
+    expect(terminal.summary).not.toHaveProperty('egressOpen');
+  });
+});
+
 it('offers a new isolated build capability for a historical Compute source delivery without rewriting its descriptor', async () => {
   // DVF f3d830e5: source-only delivery, historical HTTP evidence, no dist.
   db.prepare('DELETE FROM project_run_preview_descriptors WHERE project_run_id = ?').run(projectRunId);

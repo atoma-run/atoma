@@ -144,6 +144,8 @@ export interface PreviewResponsePolicyInput {
   readonly visualizerOrigin: string;
   /** Effective approved HTTPS hosts: requested by the run AND approved. */
   readonly allowedHosts: readonly string[];
+  /** Any public HTTPS destination, in place of the host list (owner decision 2026-11-28). */
+  readonly open?: boolean;
 }
 
 /**
@@ -158,22 +160,26 @@ export interface PreviewResponsePolicyInput {
 export function previewResponseHeaders(
   input: PreviewResponsePolicyInput
 ): Record<string, string> {
-  const hosts = input.allowedHosts.map((host) => `https://${host}`);
+  // OPEN (owner decision 2026-11-28): an application that calls an API, loads
+  // a library or embeds a map works without anyone approving its hosts one by
+  // one. The scheme source admits every HTTPS destination and nothing in
+  // cleartext; what stays closed below is unrelated to where an app may reach.
+  const hosts = input.open ? ['https:'] : input.allowedHosts.map((host) => `https://${host}`);
   const self = ["'self'", ...hosts].join(' ');
   return {
     'content-security-policy': [
       // Enforce the iframe boundary even when a preview is opened directly.
       `sandbox ${PREVIEW_BROWSER_SANDBOX}`,
       `default-src ${self}`,
-      `connect-src ${self}`,
+      `connect-src ${self}${input.open ? ' wss:' : ''}`,
       // `'unsafe-inline'` IS A DEVIATION from the design's literal
       // "scripts/styles = 'self'", and it is deliberate. A generated
       // deliverable is routinely a single HTML file with inline `<script>`
       // and `<style>`; refusing those would make the feature not work at all
       // for the commonest shape a run produces. What the host allowlist
       // actually buys is EXFILTRATION control, and that lives in `default-src`
-      // and `connect-src`, which stay closed — inline script is same-document
-      // and reaches nothing new. There is also no trusted application here to
+      // and `connect-src`, closed unless the policy is open — inline script is
+      // same-document and reaches nothing new. There is also no trusted application here to
       // protect from injected script: the application IS model-authored code
       // the member chose to open. `'unsafe-eval'` is NOT granted, because
       // nothing in the commonest shape needs it and it is the one that turns
@@ -185,7 +191,7 @@ export function previewResponseHeaders(
       `media-src ${self}`,
       // The preview may be framed by the visualizer and by nothing else.
       `frame-ancestors ${input.visualizerOrigin}`,
-      "frame-src 'none'",
+      input.open ? 'frame-src https:' : "frame-src 'none'",
       "object-src 'none'",
       "base-uri 'none'",
       "form-action 'self'",

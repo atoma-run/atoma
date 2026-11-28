@@ -36,6 +36,16 @@ it('exchanges a one-time private claim, strips credentials, and refuses cross-or
   expect(served.body).toBe('offers'); expect(received).not.toHaveProperty('cookie'); expect(received).not.toHaveProperty('authorization');
   expect(served.headers['set-cookie']!.join()).not.toContain('evil');
   expect(served.headers['content-security-policy']).toContain("worker-src 'none'");
+  // Closed unless the deployment says otherwise; open, any HTTPS destination (2026-11-28).
+  expect(served.headers['content-security-policy']).toContain("connect-src 'self';");
+  const open = createHostingGateway(service, 'https://atoma.run', () => true, undefined, undefined, true);
+  const openPort = await listen(open.server);
+  const openUrl = new URL(open.open(viewer, row.projectId));
+  const openCookie = (await call(openPort, host, '/.atoma/claim', { origin: `https://${host}` }, JSON.stringify({ token: openUrl.hash.slice(1) }))).headers['set-cookie']![0]!.split(';')[0]!;
+  const openPolicy = (await call(openPort, host, '/', { cookie: openCookie })).headers['content-security-policy'];
+  expect(openPolicy).toContain("connect-src 'self' https: wss:;");
+  expect(openPolicy).toContain("worker-src 'none'");
+  expect(openPolicy).toContain('frame-ancestors https://atoma.run');
   expect((await call(port, host, '/', { cookie, origin: 'https://evil.test' }, '{}')).status).toBe(403);
   allowed = false; expect((await call(port, host, '/', { cookie })).status).toBe(404);
 });

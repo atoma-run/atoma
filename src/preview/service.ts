@@ -92,6 +92,8 @@ export function previewSummary(input: {
   readonly instance: PreviewInstance | null;
   readonly approvedHosts: readonly string[];
   readonly operatorAllowedHosts?: readonly string[];
+  /** The deployment's previews reach any public destination (`previewEgressOpen`). */
+  readonly openEgress?: boolean;
   /**
    * Whether the run is still going. Without it this projection could only
    * describe previews that ALREADY EXIST, and a run in flight was told it had
@@ -135,7 +137,8 @@ export function previewSummary(input: {
     errorCode: instance?.errorCode ?? null,
     requestedHosts,
     allowedHosts: terminal ? [] : allowed,
-    blockedHosts: blocked,
+    blockedHosts: input.openEgress && !terminal ? [] : blocked,
+    ...(input.openEgress && !terminal ? { egressOpen: true } : {}),
   });
 }
 
@@ -148,6 +151,7 @@ export function readPreviewSummary(
     readonly projectRunId: string;
     readonly runInFlight?: boolean;
     readonly operatorAllowedHosts?: readonly string[];
+    readonly openEgress?: boolean;
   }
 ): PreviewSummary {
   const descriptor = store.getDescriptor(input.orgId, input.projectRunId);
@@ -156,6 +160,7 @@ export function readPreviewSummary(
     instance: store.getInstance(input.orgId, input.projectRunId),
     approvedHosts: store.listApprovedHosts(input.orgId, input.projectId),
     operatorAllowedHosts: input.operatorAllowedHosts,
+    openEgress: input.openEgress,
     runInFlight: input.runInFlight,
   });
 }

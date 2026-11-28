@@ -68,6 +68,8 @@ export interface PreviewRoute {
   readonly root?: string;
   /** Effective approved hosts, for the CSP. */
   readonly allowedHosts: readonly string[];
+  /** Any public HTTPS destination instead of that list (`previewEgressOpen`). */
+  readonly openEgress?: boolean;
 }
 
 /**
@@ -295,6 +297,8 @@ export function startPreviewGateway(
     const policy = previewResponseHeaders({
       visualizerOrigin: opts.visualizerOrigin,
       allowedHosts: route.allowedHosts,
+      // The terminal page is Atoma's interface over a network-less isolate.
+      ...(route.openEgress && route.mode !== 'terminal' ? { open: true } : {}),
     });
 
     // The terminal page is Atoma's own interface, not the application; its

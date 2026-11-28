@@ -610,9 +610,9 @@ separately; the login gate alone does not turn the local shell into a tenant bou
 snapshots run as ephemeral generations, never in the mutable live workspace.
 Static previews need no application container; Node previews use a runtime image,
 a read-only root and, in production, gVisor. Origins use a separate registrable
-domain, short-lived claims and credential filtering. Runtime egress is denied by
-default; an organisation admin can approve hosts requested by a delivered project.
-In-flight previews receive no egress. See [preview deployment](preview-deployment.md).
+domain, short-lived claims and credential filtering. An application reaches
+public destinations by default, never a private address; an operator can
+restrict that to an exact host list. See [preview deployment](preview-deployment.md).
 
 **One weak mechanism, documented as weak.** The routing cache memoises identical routing
 decisions. Measured over 748 real calls, only 13 were repeats — a **1.7% ceiling**, worth

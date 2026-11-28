@@ -27,6 +27,7 @@ import {
   PreviewConfigError,
   previewConfigPresent,
   previewDomainCollides,
+  previewEgressOpen,
   previewEnabled,
   snapshotPreviewConfig,
 } from '../src/preview/config.js';
@@ -421,9 +422,20 @@ describe('preview configuration', () => {
     expect(snapshotPreviewConfig(valid).image).toBe(`atoma-preview@${DIGEST}`);
   });
 
-  it('defaults to public asset hosts and accepts an explicit empty network policy', () => {
-    expect(snapshotPreviewConfig(valid).allowedHosts).toContain('fonts.googleapis.com');
-    expect(snapshotPreviewConfig({ ...valid, [PREVIEW_ENV.allowedHosts]: '' }).allowedHosts).toEqual([]);
+  it('is open by default, and an operator\'s exact list, the empty one included, closes it', () => {
+    // Unset or `*`: any public destination; the asset hosts stay as the names a Compute device takes.
+    for (const env of [valid, { ...valid, [PREVIEW_ENV.allowedHosts]: '*' }, { ...valid, [PREVIEW_ENV.allowedHosts]: ' * ' }]) {
+      expect(previewEgressOpen(env)).toBe(true);
+      expect(snapshotPreviewConfig(env)).toMatchObject({ openEgress: true });
+      expect(snapshotPreviewConfig(env).allowedHosts).toContain('fonts.googleapis.com');
+    }
+    const empty = { ...valid, [PREVIEW_ENV.allowedHosts]: '' };
+    expect(previewEgressOpen(empty)).toBe(false);
+    expect(snapshotPreviewConfig(empty)).toMatchObject({ openEgress: false, allowedHosts: [] });
+    const listed = { ...valid, [PREVIEW_ENV.allowedHosts]: 'api.example.org, fonts.gstatic.com' };
+    expect(snapshotPreviewConfig(listed)).toMatchObject({ openEgress: false, allowedHosts: ['api.example.org', 'fonts.gstatic.com'] });
+    // `*` is the whole value or it is not a host: never one entry of a list.
+    expect(() => snapshotPreviewConfig({ ...valid, [PREVIEW_ENV.allowedHosts]: 'api.example.org,*' })).toThrow();
     expect(() => snapshotPreviewConfig({ ...valid, [PREVIEW_ENV.allowedHosts]: '127.0.0.1' })).toThrow();
   });
 

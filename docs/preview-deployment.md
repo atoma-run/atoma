@@ -196,19 +196,24 @@ the caller gets `429` with a `Retry-After`.
 
 ## 6. Egress
 
-Only approved destinations are reachable. The operator resource baseline below
-applies to delivered and in-flight previews. Organisation admins may additionally
-approve hosts a delivered project requested. Changing project approvals stops
-its live previews so the next generation gets a coherent policy.
+By default an application reaches any public destination: its page may load
+and call any HTTPS address, and a Node preview's server reaches the public
+Internet, on any TCP port as a run does, through a proxy owned by its
+generation, which refuses private, loopback and link-local addresses. Nobody approves hosts one by one. This
+applies to delivered and in-flight previews and to pages Atoma hosts. A
+terminal preview has no network, and a preview served by an Atoma Compute
+device still gives its Node server the asset hosts below only.
 
-## Operator-approved network access
+## Restricting network access
 
-`ATOMA_PREVIEW_ALLOWED_HOSTS` is a comma-separated list of exact public DNS
-hosts. An explicitly empty value disables operator-approved external access.
-The default permits Google Fonts (`fonts.googleapis.com`, `fonts.gstatic.com`),
-jsDelivr and unpkg. Browser resource policy and Node preview proxies use the
-same effective list. Each Node preview gets a proxy owned by its generation;
-its application container retains an isolated internal network.
+`ATOMA_PREVIEW_ALLOWED_HOSTS` unset, or `*`, is that default. Set it to a
+comma-separated list of exact public DNS hosts to close it: previews then
+reach those hosts only, plus the hosts an organisation admin approved for a
+project that a delivered run requested, and hosted pages reach no other site
+at all. An explicitly empty value allows none. Browser resource policy and Node preview proxies use
+the same list; the application container keeps an isolated internal network
+either way. The asset hosts are Google Fonts (`fonts.googleapis.com`,
+`fonts.gstatic.com`), jsDelivr and unpkg.
 
 Project runs now enable proxied egress by default. `ATOMA_EGRESS=0` disables
 it; `ATOMA_EGRESS_ALLOWLIST` replaces its default registry and resource hosts.
